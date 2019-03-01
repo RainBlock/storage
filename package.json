@@ -1,0 +1,63 @@
+{
+  "name": "rainblock-storage",
+  "version": "v1.0.0",
+  "description": "Storage layer for the ethereum blockrain project",
+  "main": "build/index.js",
+  "scripts": {
+    "test": "npm run test:node",
+    "coverage": "istanbul cover ./test/index.js",
+    "coveralls": "npm run coverage && coveralls <coverage/lcov.info",
+    "lint": "gts check",
+    "test:node": "mocha -r ts-node/register src/**/*.spec.ts --timeout 40000",
+    "benchmark": "node -r ts-node/register src/index.bench.ts",
+    "typedoc": "typedoc --out docs $(pwd)/src --target es6 --mode file --tsconfig ./tsconfig.json --excludePrivate --excludeProtected --excludeNotExported --exclude '**/*+(spec|bench).ts'",
+    "check": "gts check",
+    "clean": "gts clean",
+    "compile": "tsc -p .",
+    "fix": "gts fix",
+    "prepare": "npm run compile",
+    "pretest": "npm run compile",
+    "posttest": "npm run check",
+    "start": "node -r ts-node/register src/index.ts"
+  },
+  "author": {
+    "name": "soujanya",
+    "email": "soujanyap95@gmail.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://gitlab.com/SoujanyaPonnapalli/StorageBlockRain"
+  },
+  "bugs": {
+    "url": ""
+  },
+  "keywords": [
+    "ethereum",
+    "storage",
+    "scaling",
+    "sharding"
+  ],
+  "license": "Apache-2.0",
+  "dependencies": {
+    "@rainblock/ethereum-block": "^0.2.0",
+    "@rainblock/merkle-patricia-tree": "^3.0.0",
+    "@types/node": "^11.9.6",
+    "bigint-hash": "^0.2.0",
+    "caporal": "^0.10.0",
+    "ethashjs": "0.0.7",
+    "ethereumjs-block": "^2.0.1"
+  },
+  "contributors": [
+    "Michael Wei (https://gitlab.com/no2chem)"
+  ],
+  "devDependencies": {
+    "@types/chai": "^4.1.4",
+    "@types/mocha": "^5.2.5",
+    "chai": "^4.1.2",
+    "gts": "^0.5.4",
+    "mocha": "^5.2.0",
+    "pre-commit": "^1.2.2",
+    "ts-node": "^7.0.1",
+    "typescript": "^3.0.0"
+  }
+}
