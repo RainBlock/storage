@@ -5,7 +5,8 @@
     "outDir": "build",
     "target" : "esnext",
     "lib" : [ "esnext" ],
-    "sourceMap": true
+    "sourceMap": true,
+    "noImplicitAny": false
   },  
   "include": [
     "src/*.ts",

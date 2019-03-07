@@ -1,23 +1,22 @@
-import {EthereumBlock} from '@rainblock/ethereum-block';
 import {BatchPut, MerklePatriciaTree, VerifyWitness, Witness} from '@rainblock/merkle-patricia-tree';
 import {toBufferBE} from 'bigint-buffer';
 import {hashAsBuffer, HashType} from 'bigint-hash';
 
 const ethHash = require('ethashjs');
+const ethBlock = require('ethereumjs-block');
 
 export interface Storage<K, V> {
   isEmpty: () => boolean;
   get: (key: K, root?: Buffer) => Witness;
-  putGenesis: (genesis: EthereumBlock, putOps: BatchPut[]) => void;
-  update: (block: EthereumBlock, putOps: BatchPut[], delOps: K[]) => void;
-  getBlockByNumber: (blockNum: number) => EthereumBlock;
-  getBlockByHash: (hash: Buffer) => EthereumBlock;
+  putGenesis: (genesis, putOps: BatchPut[]) => void;
+  update: (block, putOps: BatchPut[], delOps: K[]) => void;
+  getBlockByNumber(blockNum: number);
+  getBlockByHash(hash: Buffer);
   verifyWitness: (root: Buffer, key: Buffer, witness: Witness) => boolean;
 }
 
 /**
  * TODO : PersistUpdates
- * ethereum-block?
  */
 export class StorageNode<K = Buffer, V = Buffer> implements Storage<K, V> {
   _shard: number;
@@ -32,14 +31,14 @@ export class StorageNode<K = Buffer, V = Buffer> implements Storage<K, V> {
 
   _gcThreshold = 256;
 
-  constructor(shard?: number, genesis?: EthereumBlock, putOps?: BatchPut[]) {
+  constructor(shard?: number, genesis?, putOps?: BatchPut[]) {
     this._shard = (shard && shard >= 0 && shard < 16) ? shard : -1;
     if (genesis && putOps) {
       this.putGenesis(genesis, putOps);
     }
   }
 
-  private validateProofOfWork(block: EthereumBlock, root?: Buffer) {
+  private validateProofOfWork(block, root?: Buffer) {
     ethHash.verifyPOW(block, (valid: boolean) => {
       if (!valid) {
         throw new Error('Invalid Block');
@@ -75,7 +74,7 @@ export class StorageNode<K = Buffer, V = Buffer> implements Storage<K, V> {
     return state.get(key);
   }
 
-  putGenesis(genesis: EthereumBlock, putOps: BatchPut[]) {
+  putGenesis(genesis, putOps: BatchPut[]) {
     if (!this.isEmpty()) {
       throw new Error('Invalid: putGenesis when Blockchain not empty');
     }
@@ -85,8 +84,7 @@ export class StorageNode<K = Buffer, V = Buffer> implements Storage<K, V> {
     this.validateProofOfWork(genesis, root);
 
     const blockNum = genesis.header.blockNumber;
-    // TODO: mixHash ?
-    const blockHash = genesis.header.mixHash;
+    const blockHash = genesis.header.hash();
     this._blockchain.set(blockHash, [genesis, trie]);
     this._rootMap.set(root, [blockHash, trie]);
     this._blockNumberToHash.set(blockNum, blockHash);
@@ -118,13 +116,13 @@ export class StorageNode<K = Buffer, V = Buffer> implements Storage<K, V> {
     }
   }
 
-  private persist(block: EthereumBlock, putOps: BatchPut[], delOps: K[]) {}
+  private persist(block, putOps: BatchPut[], delOps: K[]) {}
 
   private partitionKeys(putOps: BatchPut[], delOps: K[]) {
     return [putOps, delOps];
   }
 
-  update(block: EthereumBlock, putOps: BatchPut[], delOps: K[]) {
+  update(block, putOps: BatchPut[], delOps: K[]) {
     this.gc();
     this.validateProofOfWork(block);
     const parentHash = block.header.parentHash;
@@ -138,8 +136,7 @@ export class StorageNode<K = Buffer, V = Buffer> implements Storage<K, V> {
     const trie = parentState.batchCOW(keys[0], keys[1]);
     const root = trie.root;
     const blockNum = block.header.blockNumber;
-    // TODO: mixHash ?
-    const blockHash = block.header.mixHash;
+    const blockHash = block.header.hash();
     this._blockchain.set(blockHash, [block, trie]);
     this._rootMap.set(root, [blockHash, trie]);
     this._blockNumberToHash.set(blockNum, blockHash);
@@ -147,12 +144,12 @@ export class StorageNode<K = Buffer, V = Buffer> implements Storage<K, V> {
     this.persist(block, putOps, delOps);
   }
 
-  getBlockByNumber(blockNum: number): EthereumBlock {
+  getBlockByNumber(blockNum: number) {
     const hash = this._blockNumberToHash.get(blockNum);
     return this.getBlockByHash(hash);
   }
 
-  getBlockByHash(hash: Buffer): EthereumBlock {
+  getBlockByHash(hash: Buffer) {
     const value = this._blockchain.get(hash);
     return value[0];
   }
