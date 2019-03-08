@@ -40,12 +40,13 @@
   "license": "Apache-2.0",
   "dependencies": {
     "@rainblock/ethereum-block": "^0.2.0",
-    "@rainblock/merkle-patricia-tree": "^3.0.0",
+    "@rainblock/merkle-patricia-tree": "v4.1.0",
     "@types/node": "^11.9.6",
-    "bigint-hash": "^0.2.0",
+    "benchmark": "^2.1.4",
     "caporal": "^0.10.0",
     "ethashjs": "0.0.7",
-    "ethereumjs-block": "^2.0.1"
+    "ethereumjs-block": "^2.0.1",
+    "level-mem": "^3.0.1"
   },
   "contributors": [
     "Michael Wei (https://gitlab.com/no2chem)"

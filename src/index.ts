@@ -1,18 +1,17 @@
-import {BatchPut, MerklePatriciaTree, VerifyWitness, Witness} from '@rainblock/merkle-patricia-tree';
-import {toBufferBE} from 'bigint-buffer';
-import {hashAsBuffer, HashType} from 'bigint-hash';
+import {BatchPut, MerklePatriciaTree, RlpWitness, verifyWitness, Witness} from '@rainblock/merkle-patricia-tree';
 
-const ethHash = require('ethashjs');
 const ethBlock = require('ethereumjs-block');
+const ethHash = require('ethashjs');
+const level = require('level-mem');
 
 export interface Storage<K, V> {
   isEmpty: () => boolean;
-  get: (key: K, root?: Buffer) => Witness;
+  get: (key: K, root?: Buffer) => Witness<V>;
   putGenesis: (genesis, putOps: BatchPut[]) => void;
   update: (block, putOps: BatchPut[], delOps: K[]) => void;
   getBlockByNumber(blockNum: number);
   getBlockByHash(hash: Buffer);
-  verifyWitness: (root: Buffer, key: Buffer, witness: Witness) => boolean;
+  prove: (root: Buffer, key: Buffer, witness: RlpWitness) => boolean;
 }
 
 /**
@@ -39,14 +38,14 @@ export class StorageNode<K = Buffer, V = Buffer> implements Storage<K, V> {
   }
 
   private validateProofOfWork(block, root?: Buffer) {
-    ethHash.verifyPOW(block, (valid: boolean) => {
+    const ethash = new ethHash(level());
+    ethash.verifyPOW(block, (valid: boolean) => {
       if (!valid) {
         throw new Error('Invalid Block');
       }
     });
     if (root) {
-      const blockStateRoot = hashAsBuffer(
-          HashType.KECCAK256, toBufferBE(block.header.stateRoot, 32));
+      const blockStateRoot = block.header.stateRoot;
       if (root.compare(blockStateRoot) !== 0) {
         throw new Error('Block and State root mismatch');
       }
@@ -62,7 +61,7 @@ export class StorageNode<K = Buffer, V = Buffer> implements Storage<K, V> {
     return true;
   }
 
-  get(key: K, root?: Buffer): Witness {
+  get(key: K, root?: Buffer): Witness<V> {
     let state;
     if (root && this._rootMap.has(root)) {
       const val = this._rootMap.get(root);
@@ -84,7 +83,7 @@ export class StorageNode<K = Buffer, V = Buffer> implements Storage<K, V> {
     this.validateProofOfWork(genesis, root);
 
     const blockNum = genesis.header.blockNumber;
-    const blockHash = genesis.header.hash();
+    const blockHash = genesis.header.hash().toString('hex');
     this._blockchain.set(blockHash, [genesis, trie]);
     this._rootMap.set(root, [blockHash, trie]);
     this._blockNumberToHash.set(blockNum, blockHash);
@@ -125,7 +124,7 @@ export class StorageNode<K = Buffer, V = Buffer> implements Storage<K, V> {
   update(block, putOps: BatchPut[], delOps: K[]) {
     this.gc();
     this.validateProofOfWork(block);
-    const parentHash = block.header.parentHash;
+    const parentHash = block.header.parent.toString('hex');
     let parentState = this._blockchain.get(parentHash);
     if (parentState) {
       parentState = parentState[1];
@@ -136,7 +135,7 @@ export class StorageNode<K = Buffer, V = Buffer> implements Storage<K, V> {
     const trie = parentState.batchCOW(keys[0], keys[1]);
     const root = trie.root;
     const blockNum = block.header.blockNumber;
-    const blockHash = block.header.hash();
+    const blockHash = block.header.hash().toString('hex');
     this._blockchain.set(blockHash, [block, trie]);
     this._rootMap.set(root, [blockHash, trie]);
     this._blockNumberToHash.set(blockNum, blockHash);
@@ -150,12 +149,12 @@ export class StorageNode<K = Buffer, V = Buffer> implements Storage<K, V> {
   }
 
   getBlockByHash(hash: Buffer) {
-    const value = this._blockchain.get(hash);
+    const value = this._blockchain.get(hash.toString('hex'));
     return value[0];
   }
 
-  verifyWitness(root: Buffer, key: Buffer, witness: Witness): boolean {
-    VerifyWitness(root, key, witness);
+  prove(root: Buffer, key: Buffer, witness: RlpWitness): boolean {
+    verifyWitness(root, key, witness);
     return true;
   }
 }
