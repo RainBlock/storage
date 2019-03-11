@@ -1,5 +1,5 @@
 import {EthereumBlock} from '@rainblock/ethereum-block';
-import {BatchPut, MerklePatriciaTree, VerifyWitness, Witness} from '@rainblock/merkle-patricia-tree';
+import {BatchPut, MerklePatriciaTree, RlpWitness, verifyWitness, Witness} from '@rainblock/merkle-patricia-tree';
 import {toBufferBE} from 'bigint-buffer';
 import {hashAsBuffer, HashType} from 'bigint-hash';
 
@@ -7,12 +7,12 @@ const ethHash = require('ethashjs');
 
 export interface Storage<K, V> {
   isEmpty: () => boolean;
-  get: (key: K, root?: Buffer) => Witness;
+  get: (key: K, root?: Buffer) => Witness<V>;
   putGenesis: (genesis: EthereumBlock, putOps: BatchPut[]) => void;
   update: (block: EthereumBlock, putOps: BatchPut[], delOps: K[]) => void;
   getBlockByNumber: (blockNum: number) => EthereumBlock;
   getBlockByHash: (hash: Buffer) => EthereumBlock;
-  verifyWitness: (root: Buffer, key: Buffer, witness: Witness) => boolean;
+  prove: (root: Buffer, key: Buffer, witness: RlpWitness) => boolean;
 }
 
 /**
@@ -63,7 +63,7 @@ export class StorageNode<K = Buffer, V = Buffer> implements Storage<K, V> {
     return true;
   }
 
-  get(key: K, root?: Buffer): Witness {
+  get(key: K, root?: Buffer): Witness<V> {
     let state;
     if (root && this._rootMap.has(root)) {
       const val = this._rootMap.get(root);
@@ -157,8 +157,8 @@ export class StorageNode<K = Buffer, V = Buffer> implements Storage<K, V> {
     return value[0];
   }
 
-  verifyWitness(root: Buffer, key: Buffer, witness: Witness): boolean {
-    VerifyWitness(root, key, witness);
+  prove(root: Buffer, key: Buffer, witness: RlpWitness): boolean {
+    verifyWitness(root, key, witness);
     return true;
   }
 }
