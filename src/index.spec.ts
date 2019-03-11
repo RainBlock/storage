@@ -94,7 +94,6 @@ describe('First 10 blocks', async () => {
       if (i) {
         snode.update(rlpBlocks[i], [], []);
       }
-      console.log(snode);
     }
   });
 });
