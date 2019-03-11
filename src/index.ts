@@ -1,4 +1,7 @@
+import {EthereumBlock} from '@rainblock/ethereum-block';
 import {BatchPut, MerklePatriciaTree, RlpWitness, verifyWitness, Witness} from '@rainblock/merkle-patricia-tree';
+import {toBufferBE} from 'bigint-buffer';
+import {hashAsBuffer, HashType} from 'bigint-hash';
 
 const ethBlock = require('ethereumjs-block');
 const ethHash = require('ethashjs');
@@ -7,10 +10,10 @@ const level = require('level-mem');
 export interface Storage<K, V> {
   isEmpty: () => boolean;
   get: (key: K, root?: Buffer) => Witness<V>;
-  putGenesis: (genesis, putOps: BatchPut[]) => void;
-  update: (block, putOps: BatchPut[], delOps: K[]) => void;
-  getBlockByNumber(blockNum: number);
-  getBlockByHash(hash: Buffer);
+  putGenesis: (genesis: EthereumBlock, putOps: BatchPut[]) => void;
+  update: (block: EthereumBlock, putOps: BatchPut[], delOps: K[]) => void;
+  getBlockByNumber: (blockNum: number) => EthereumBlock;
+  getBlockByHash: (hash: Buffer) => EthereumBlock;
   prove: (root: Buffer, key: Buffer, witness: RlpWitness) => boolean;
 }
 
