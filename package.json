@@ -42,7 +42,9 @@
     "@rainblock/ethereum-block": "^0.2.0",
     "@rainblock/merkle-patricia-tree": "^v4.1.0",
     "bigint-hash": "git+https://github.com/SoujanyaPonnapalli/bigint-hash.git",
-    "caporal": "^0.10.0"
+    "caporal": "^0.10.0",
+    "ethashjs": "0.0.7",
+    "level-mem": "^3.0.1"
   },
   "contributors": [
     "Michael Wei (https://gitlab.com/no2chem)"

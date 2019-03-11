@@ -1,8 +1,12 @@
-import {decodeBlock, EthereumBlock} from '@rainblock/ethereum-block';
+import {decodeBlock, EthereumBlock, EthereumBlockDecoderError} from '@rainblock/ethereum-block';
 import {BatchPut, MerklePatriciaTree, RlpWitness, verifyWitness, Witness} from '@rainblock/merkle-patricia-tree';
 import {toBigIntBE, toBufferBE} from 'bigint-buffer';
 import {hashAsBigInt, HashType} from 'bigint-hash';
 import {RlpEncode, RlpList} from 'rlp-stream';
+
+const ethash = require('ethashjs');
+const level = require('level-mem');
+const ethjsBlock = require('ethereumjs-block');
 
 export interface Storage<K = Buffer, V = Buffer> {
   isEmpty: () => boolean;
@@ -34,6 +38,8 @@ export class StorageNode<K = Buffer, V = Buffer> implements
 
   _gcThreshold = 256;
 
+  _cacheDB = new level();
+
   constructor(shard?: number, genesis?: RlpList, putOps?: BatchPut[]) {
     this._shard = (shard && shard >= 0 && shard < 16) ? shard : -1;
     if (genesis && putOps) {
@@ -41,23 +47,12 @@ export class StorageNode<K = Buffer, V = Buffer> implements
     }
   }
 
-  private validateProofOfWork(block: EthereumBlock, root?: BigInt) {
-    // const ethash = new ethHash(level());
-    // console.log(block.header.blockNumber);
-    // if (block.header.blockNumber === BigInt(0)) {
-    //   block.header.isGenesis = true;
-    // }
-    // ethash.verifyPOW(block, (valid: boolean) => {
-    //   if (!valid) {
-    //     throw new Error('Invalid Block');
-    //   }
-    // });
-    // if (root) {
-    //   const blockStateRoot = toBufferBE(block.header.stateRoot, 32);
-    //   if (root.compare(blockStateRoot) !== 0) {
-    //     throw new Error('Block and State root mismatch');
-    //   }
-    // }
+  verifyPOW(block: RlpList) {
+    const _ethash = new ethash(this._cacheDB);
+    const ethBlock = new ethjsBlock(block);
+    _ethash.verifyPOW(ethBlock, (result: boolean) => {
+      console.log('POW-result: ', result);
+    });
   }
 
   isEmpty(): boolean {
@@ -88,7 +83,7 @@ export class StorageNode<K = Buffer, V = Buffer> implements
 
     const trie = new MerklePatriciaTree();
     const root = toBigIntBE(trie.batch(putOps));
-    this.validateProofOfWork(genesis, root);
+    this.verifyPOW(rlpGenesis);
 
     const blockNum = genesis.header.blockNumber;
     const blockHash = computeBlockHash(rlpGenesis);
@@ -132,7 +127,7 @@ export class StorageNode<K = Buffer, V = Buffer> implements
   update(rlpBlock: RlpList, putOps: BatchPut[], delOps: Buffer[]) {
     this.gc();
     const block = decodeBlock(rlpBlock);
-    this.validateProofOfWork(block);
+    this.verifyPOW(rlpBlock);
     const parentHash = block.header.parentHash;
     const parentState: MerklePatriciaTree =
         this._blockchain.get(parentHash)![1];

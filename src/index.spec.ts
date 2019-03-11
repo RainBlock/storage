@@ -91,7 +91,7 @@ describe('First 10 blocks', async () => {
       const ethBlock = new ethjsBlock(rlpBlocks[i]);
       const hash = toBufferBE(computeBlockHash(rlpBlocks[i]), 32);
       hash.should.deep.equal(ethBlock.hash());
-      if (i) {
+      if (i !== 0) {
         snode.update(rlpBlocks[i], [], []);
       }
     }
