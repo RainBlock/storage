@@ -4,7 +4,7 @@ import {toBigIntBE, toBufferBE} from 'bigint-buffer';
 import {hashAsBigInt, HashType} from 'bigint-hash';
 import {RlpEncode, RlpList} from 'rlp-stream';
 
-const ethash = require('ethashjs');
+const nodeEthash = require('node-ethash');
 const level = require('level-mem');
 const ethjsBlock = require('ethereumjs-block');
 
@@ -48,7 +48,7 @@ export class StorageNode<K = Buffer, V = Buffer> implements
   }
 
   verifyPOW(block: RlpList) {
-    const _ethash = new ethash(this._cacheDB);
+    const _ethash = new nodeEthash(this._cacheDB);
     const ethBlock = new ethjsBlock(block);
     _ethash.verifyPOW(ethBlock, (result: boolean) => {
       console.log('POW-result: ', result);
