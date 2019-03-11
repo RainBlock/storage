@@ -50,9 +50,11 @@ export class StorageNode<K = Buffer, V = Buffer> implements
   verifyPOW(block: RlpList) {
     const _ethash = new nodeEthash(this._cacheDB);
     const ethBlock = new ethjsBlock(block);
-    _ethash.verifyPOW(ethBlock, (result: boolean) => {
-      console.log('POW-result: ', result);
-    });
+    _ethash.verifyPOW(
+        ethBlock,
+        (result: boolean) => {
+            // TODO: Write to the logFile
+        });
   }
 
   isEmpty(): boolean {
