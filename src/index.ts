@@ -16,7 +16,6 @@ export interface Storage<K = Buffer, V = Buffer> {
   putGenesis: (genesis: RlpList, putOps: BatchPut[]) => void;
   update: (block: RlpList, putOps: BatchPut[], delOps: Buffer[]) => void;
   prove: (root: Buffer, key: Buffer, witness: RlpWitness) => boolean;
-  // TODO: getBlockByHash, getBlockByNumber (get Recent 256!)
   getRecentBlocks: () => Buffer[];
 }
 
