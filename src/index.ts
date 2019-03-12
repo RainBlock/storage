@@ -12,7 +12,7 @@ const multiMap = require('multimap');
 
 export interface Storage<K = Buffer, V = Buffer> {
   isEmpty: () => boolean;
-  get: (key: Buffer, root?: Buffer) => Witness<V>;
+  get: (key: Buffer, root?: Buffer) => RlpWitness;
   putGenesis: (genesis: RlpList, putOps: BatchPut[]) => void;
   update: (block: RlpList, putOps: BatchPut[], delOps: Buffer[]) => void;
   prove: (root: Buffer, key: Buffer, witness: RlpWitness) => boolean;
@@ -86,25 +86,27 @@ export class StorageNode<K = Buffer, V = Buffer> implements
     return true;
   }
 
-  get(key: Buffer, root?: Buffer): Witness<Buffer> {
+  get(key: Buffer, root?: Buffer): RlpWitness {
     const stateList: MerklePatriciaTree[]|MerklePatriciaTree =
         this._activeSnapshots.get(this._highestBlockNumber);
     if (root) {
       if (stateList instanceof Array) {
         for (const state of stateList) {
           if (state.root.compare(root) === 0) {
-            return state.get(key);
+            return state.rlpSerializeWitness(state.get(key));
           }
         }
-        return stateList.pop()!.get(key);
+        const s = stateList.pop();
+        return s!.rlpSerializeWitness(s!.get(key));
       } else {
-        return stateList.get(key);
+        return stateList.rlpSerializeWitness(stateList.get(key));
       }
     } else {
       if (stateList instanceof Array) {
-        return stateList.pop()!.get(key);
+        const s = stateList.pop();
+        return s!.rlpSerializeWitness(s!.get(key));
       } else {
-        return stateList.get(key);
+        return stateList.rlpSerializeWitness(stateList.get(key));
       }
     }
   }

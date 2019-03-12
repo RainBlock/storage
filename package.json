@@ -13,7 +13,7 @@
     "typedoc": "typedoc --out docs $(pwd)/src --target es6 --mode file --tsconfig ./tsconfig.json --excludePrivate --excludeProtected --excludeNotExported --exclude '**/*+(spec|bench).ts'",
     "check": "gts check",
     "clean": "gts clean",
-    "compile": "tsc -p .",
+    "compile": "mkdir -p build/src; tsc -p .",
     "fix": "gts fix",
     "pretest": "npm run compile",
     "posttest": "npm run check",
@@ -39,10 +39,12 @@
   ],
   "license": "Apache-2.0",
   "dependencies": {
+    "@grpc/proto-loader": "^0.4.0",
     "@rainblock/ethereum-block": "^0.2.0",
     "@rainblock/merkle-patricia-tree": "^v4.1.0",
     "bigint-hash": "git+https://github.com/SoujanyaPonnapalli/bigint-hash.git",
     "caporal": "^0.10.0",
+    "grpc": "^1.19.0",
     "level-mem": "^3.0.1",
     "multimap": "^1.0.2",
     "node-ethash": "git+https://github.com/SoujanyaPonnapalli/node-ethash.git"
