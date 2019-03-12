@@ -1,6 +1,6 @@
 import {decodeBlock, EthereumBlock} from '@rainblock/ethereum-block';
 import {BatchPut, MerklePatriciaTree, RlpWitness, verifyWitness, Witness} from '@rainblock/merkle-patricia-tree';
-import {toBigIntBE, toBufferBE} from 'bigint-buffer';
+import {toBigIntBE} from 'bigint-buffer';
 import {hashAsBigInt, HashType} from 'bigint-hash';
 import * as fs from 'fs-extra';
 import {RlpEncode, RlpList} from 'rlp-stream';
@@ -17,6 +17,7 @@ export interface Storage<K = Buffer, V = Buffer> {
   update: (block: RlpList, putOps: BatchPut[], delOps: Buffer[]) => void;
   prove: (root: Buffer, key: Buffer, witness: RlpWitness) => boolean;
   // TODO: getBlockByHash, getBlockByNumber (get Recent 256!)
+  getRecentBlocks: () => Buffer[];
 }
 
 export function computeBlockHash(block: RlpList): bigint {
@@ -203,6 +204,15 @@ export class StorageNode<K = Buffer, V = Buffer> implements
     this._highestBlockNumber = (this._highestBlockNumber > blockNum) ?
         this._highestBlockNumber :
         blockNum;
+  }
+
+  getRecentBlocks(): Buffer[] {
+    const retVal = [];
+    const blockHashIterator = this._blockchain.keys();
+    for (const hash of blockHashIterator) {
+      retVal.push(hash);
+    }
+    return retVal;
   }
 
   prove(root: Buffer, key: Buffer, witness: RlpWitness): boolean {
