@@ -8,10 +8,11 @@ import {RlpEncode, RlpList} from 'rlp-stream';
 const nodeEthash = require('node-ethash');
 const level = require('level-mem');
 const ethjsBlock = require('ethereumjs-block');
+const multiMap = require('multimap');
 
 export interface Storage<K = Buffer, V = Buffer> {
   isEmpty: () => boolean;
-  get: (key: Buffer, blockHash?: BigInt) => Witness<V>;
+  get: (key: Buffer, root?: Buffer) => Witness<V>;
   putGenesis: (genesis: RlpList, putOps: BatchPut[]) => void;
   update: (block: RlpList, putOps: BatchPut[], delOps: Buffer[]) => void;
   prove: (root: Buffer, key: Buffer, witness: RlpWitness) => boolean;
@@ -26,19 +27,35 @@ export function computeBlockHash(block: RlpList): bigint {
 
 export class StorageNode<K = Buffer, V = Buffer> implements
     Storage<Buffer, Buffer> {
+  /**
+   * Determines the the StorageNode's partition
+   */
   _shard: number;
 
-  _blockchain = new Map<BigInt, [EthereumBlock, MerklePatriciaTree]>();
+  /**
+   * _blockchain maps blockHash to the [Block, stateSnapshot]
+   */
+  _blockchain = new multiMap();
 
-  _blockNumberToHash = new Map<BigInt, BigInt>();
+  /**
+   * _blockNumberToHash maps blockNumber to blockHash
+   */
+  _blockNumberToHash = new multiMap();
 
-  _activeSnapshots: MerklePatriciaTree[] = [];
+  /**
+   * _activeSnapshots maps blockNumber to the stateSnapshot
+   */
+  _activeSnapshots = new multiMap();
 
-  _gcThreshold = 256;
+  _gcThreshold = 256n;
 
   _cacheDB = new level();
 
   _logFile: fs.WriteStream;
+
+  _lowestBlockNumber = -1n;
+
+  _highestBlockNumber = -1n;
 
   constructor(shard?: number, genesis?: RlpList, putOps?: BatchPut[]) {
     const date = new Date().toISOString().replace(/T/, ' ').replace(/\..+/, '');
@@ -63,22 +80,33 @@ export class StorageNode<K = Buffer, V = Buffer> implements
 
   isEmpty(): boolean {
     if (this._blockchain.size !== 0 || this._blockNumberToHash.size !== 0 ||
-        this._activeSnapshots.length !== 0) {
+        this._activeSnapshots.size !== 0) {
       return false;
     }
     return true;
   }
 
-  get(key: Buffer, blockHash?: BigInt): Witness<Buffer> {
-    let state: MerklePatriciaTree;
-    if (blockHash && this._blockchain.has(blockHash)) {
-      const val = this._blockchain.get(blockHash);
-      state = val![1];
+  get(key: Buffer, root?: Buffer): Witness<Buffer> {
+    const stateList: MerklePatriciaTree[]|MerklePatriciaTree =
+        this._activeSnapshots.get(this._highestBlockNumber);
+    if (root) {
+      if (stateList instanceof Array) {
+        for (const state of stateList) {
+          if (state.root.compare(root) === 0) {
+            return state.get(key);
+          }
+        }
+        return stateList.pop()!.get(key);
+      } else {
+        return stateList.get(key);
+      }
     } else {
-      const len = this._activeSnapshots.length;
-      state = this._activeSnapshots[len - 1];
+      if (stateList instanceof Array) {
+        return stateList.pop()!.get(key);
+      } else {
+        return stateList.get(key);
+      }
     }
-    return state.get(key);
   }
 
   putGenesis(rlpGenesis: RlpList, putOps: BatchPut[]) {
@@ -96,31 +124,31 @@ export class StorageNode<K = Buffer, V = Buffer> implements
     const blockHash = computeBlockHash(rlpGenesis);
     this._blockchain.set(blockHash, [genesis, trie]);
     this._blockNumberToHash.set(blockNum, blockHash);
-    this._activeSnapshots.push(trie);
-  }
-
-  private _deleteFirstInMap(
-      map: Map<BigInt, BigInt|[EthereumBlock, MerklePatriciaTree]>) {
-    const keys = map.keys();
-    for (const key of keys) {
-      const value = map.get(key);
-      map.delete(key);
-      return value;
-    }
-    return undefined;
+    this._activeSnapshots.set(blockNum, trie);
+    this._lowestBlockNumber = blockNum;
+    this._highestBlockNumber = blockNum;
   }
 
   private gc() {
-    if (this._activeSnapshots.length <= this._gcThreshold) {
+    if (this._highestBlockNumber - this._lowestBlockNumber <
+        this._gcThreshold) {
       return;
     }
-    const gcNumber = this._activeSnapshots.length - this._gcThreshold;
-    for (let i = 0; i < gcNumber; i++) {
-      global.gc();
-      this._activeSnapshots.shift();
-      this._deleteFirstInMap(this._blockchain);
-      this._deleteFirstInMap(this._blockNumberToHash);
-      // TODO: Cross check if we deleted all related values
+    const diff = this._highestBlockNumber - this._lowestBlockNumber;
+    const gcNumber = diff - this._gcThreshold;
+    for (let i = BigInt(0); i < gcNumber; i += BigInt(1)) {
+      const num = this._lowestBlockNumber + i;
+      const hash = this._blockNumberToHash.get(num);
+      const v1 = this._blockNumberToHash.delete(num);
+      let v2 = true;
+      for (const h of hash) {
+        v2 = v2 && this._blockchain.delete(h);
+      }
+      const v3 = this._activeSnapshots.delete(num);
+      if (!(v1 && v2 && v3)) {
+        throw new Error('Panic while garbage collecting!');
+      }
+      this._lowestBlockNumber += 1n;
     }
   }
 
@@ -145,7 +173,7 @@ export class StorageNode<K = Buffer, V = Buffer> implements
     this.verifyPOW(rlpBlock);
     const parentHash = block.header.parentHash;
     const parentState: MerklePatriciaTree =
-        this._blockchain.get(parentHash)![1];
+        (this._blockchain.get(parentHash)[0])![1];
     if (!parentState) {
       throw new Error('Cannot find parent state');
     }
@@ -156,8 +184,11 @@ export class StorageNode<K = Buffer, V = Buffer> implements
     const blockHash = computeBlockHash(rlpBlock);
     this._blockchain.set(blockHash, [block, trie]);
     this._blockNumberToHash.set(blockNum, blockHash);
-    this._activeSnapshots.push(trie);
+    this._activeSnapshots.set(blockNum, trie);
     this.persist(rlpBlock, putOps, delOps);
+    this._highestBlockNumber = (this._highestBlockNumber > blockNum) ?
+        this._highestBlockNumber :
+        blockNum;
   }
 
   prove(root: Buffer, key: Buffer, witness: RlpWitness): boolean {

@@ -44,6 +44,7 @@
     "bigint-hash": "git+https://github.com/SoujanyaPonnapalli/bigint-hash.git",
     "caporal": "^0.10.0",
     "level-mem": "^3.0.1",
+    "multimap": "^1.0.2",
     "node-ethash": "git+https://github.com/SoujanyaPonnapalli/node-ethash.git"
   },
   "contributors": [
