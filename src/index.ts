@@ -164,7 +164,21 @@ export class StorageNode<K = Buffer, V = Buffer> implements
 
   private partitionKeys(putOps: BatchPut[], delOps: Buffer[]):
       [BatchPut[], Buffer[]] {
-    return [putOps, delOps];
+    if (this._shard === -1) {
+      return [putOps, delOps];
+    }
+    const shardedPutOps = [], shardedDelOps = [];
+    for (const put of putOps) {
+      if (Math.floor(put.key[0] / 16) === this._shard) {
+        shardedPutOps.push(put);
+      }
+    }
+    for (const key of delOps) {
+      if (Math.floor(key[0] / 16) === this._shard) {
+        shardedDelOps.push(key);
+      }
+    }
+    return [shardedPutOps, shardedDelOps];
   }
 
   update(rlpBlock: RlpList, putOps: BatchPut[], delOps: Buffer[]) {
