@@ -1,4 +1,4 @@
-import {decodeBlock, EthereumBlock, EthereumBlockDecoderError} from '@rainblock/ethereum-block';
+import {decodeBlock, EthereumBlock} from '@rainblock/ethereum-block';
 import {BatchPut, MerklePatriciaTree, RlpWitness, verifyWitness, Witness} from '@rainblock/merkle-patricia-tree';
 import {toBigIntBE, toBufferBE} from 'bigint-buffer';
 import {hashAsBigInt, HashType} from 'bigint-hash';
@@ -110,7 +110,7 @@ export class StorageNode<K = Buffer, V = Buffer> implements
   }
 
   putGenesis(rlpGenesis: RlpList, putOps: BatchPut[]) {
-    const genesis = decodeBlock(rlpGenesis);
+    const genesis: EthereumBlock = decodeBlock(rlpGenesis);
     if (!this.isEmpty()) {
       throw new Error('Invalid: putGenesis when Blockchain not empty');
     }
@@ -183,7 +183,7 @@ export class StorageNode<K = Buffer, V = Buffer> implements
 
   update(rlpBlock: RlpList, putOps: BatchPut[], delOps: Buffer[]) {
     this.gc();
-    const block = decodeBlock(rlpBlock);
+    const block: EthereumBlock = decodeBlock(rlpBlock);
     this.verifyPOW(rlpBlock);
     const parentHash = block.header.parentHash;
     const parentState: MerklePatriciaTree =
