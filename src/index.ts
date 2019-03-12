@@ -2,6 +2,7 @@ import {decodeBlock, EthereumBlock, EthereumBlockDecoderError} from '@rainblock/
 import {BatchPut, MerklePatriciaTree, RlpWitness, verifyWitness, Witness} from '@rainblock/merkle-patricia-tree';
 import {toBigIntBE, toBufferBE} from 'bigint-buffer';
 import {hashAsBigInt, HashType} from 'bigint-hash';
+import * as fs from 'fs-extra';
 import {RlpEncode, RlpList} from 'rlp-stream';
 
 const nodeEthash = require('node-ethash');
@@ -23,9 +24,6 @@ export function computeBlockHash(block: RlpList): bigint {
   return hash;
 }
 
-/**
- * TODO : PersistUpdates
- */
 export class StorageNode<K = Buffer, V = Buffer> implements
     Storage<Buffer, Buffer> {
   _shard: number;
@@ -40,7 +38,13 @@ export class StorageNode<K = Buffer, V = Buffer> implements
 
   _cacheDB = new level();
 
+  _logFile: fs.WriteStream;
+
   constructor(shard?: number, genesis?: RlpList, putOps?: BatchPut[]) {
+    const date = new Date().toISOString().replace(/T/, ' ').replace(/\..+/, '');
+    const filename = ('./logs/' + date + '.log').split(' ').join('');
+    this._logFile = fs.createWriteStream(filename, {flags: 'a'});
+
     this._shard = (shard && shard >= 0 && shard < 16) ? shard : -1;
     if (genesis && putOps) {
       this.putGenesis(genesis, putOps);
@@ -50,11 +54,11 @@ export class StorageNode<K = Buffer, V = Buffer> implements
   verifyPOW(block: RlpList) {
     const _ethash = new nodeEthash(this._cacheDB);
     const ethBlock = new ethjsBlock(block);
-    _ethash.verifyPOW(
-        ethBlock,
-        (result: boolean) => {
-            // TODO: Write to the logFile
-        });
+    const blockNumber = ethBlock.header.number.toString('hex') + '\n';
+    _ethash.verifyPOW(ethBlock, (result: boolean) => {
+      this._logFile.write(
+          result ? 'Valid ' + blockNumber : 'Invalid ' + blockNumber);
+    });
   }
 
   isEmpty(): boolean {
@@ -86,6 +90,7 @@ export class StorageNode<K = Buffer, V = Buffer> implements
     const trie = new MerklePatriciaTree();
     const root = toBigIntBE(trie.batch(putOps));
     this.verifyPOW(rlpGenesis);
+    this.persist(rlpGenesis, putOps, []);
 
     const blockNum = genesis.header.blockNumber;
     const blockHash = computeBlockHash(rlpGenesis);
@@ -119,7 +124,15 @@ export class StorageNode<K = Buffer, V = Buffer> implements
     }
   }
 
-  private persist(block: EthereumBlock, putOps: BatchPut[], delOps: Buffer[]) {}
+  private persist(block: RlpList, putOps: BatchPut[], delOps: Buffer[]) {
+    this._logFile.write(RlpEncode(block).toString('hex') + '\n');
+    const puts = [];
+    for (const put of putOps) {
+      puts.push([put.key, put.val]);
+    }
+    this._logFile.write(RlpEncode(puts).toString('hex') + '\n');
+    this._logFile.write(RlpEncode(delOps).toString('hex') + '\n');
+  }
 
   private partitionKeys(putOps: BatchPut[], delOps: Buffer[]):
       [BatchPut[], Buffer[]] {
@@ -144,7 +157,7 @@ export class StorageNode<K = Buffer, V = Buffer> implements
     this._blockchain.set(blockHash, [block, trie]);
     this._blockNumberToHash.set(blockNum, blockHash);
     this._activeSnapshots.push(trie);
-    this.persist(block, putOps, delOps);
+    this.persist(rlpBlock, putOps, delOps);
   }
 
   prove(root: Buffer, key: Buffer, witness: RlpWitness): boolean {
