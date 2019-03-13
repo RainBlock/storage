@@ -70,7 +70,7 @@ describe('Genesis block', async () => {
   });
 
   it('should putGenesis', async () => {
-    const snode = new StorageNode(-1, rlpBlock, []);
+    const snode = new StorageNode(-1);
   });
 });
 
@@ -86,7 +86,7 @@ describe('First 10 blocks', async () => {
   });
 
   it('should compute correct block hash', async () => {
-    const snode = new StorageNode(-1, rlpBlocks[0], []);
+    const snode = new StorageNode(-1);
     for (let i = 0; i < blocks.length; i++) {
       const ethBlock = new ethjsBlock(rlpBlocks[i]);
       const hash = toBufferBE(computeBlockHash(rlpBlocks[i]), 32);

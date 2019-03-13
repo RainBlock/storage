@@ -42,12 +42,17 @@
     "@grpc/proto-loader": "^0.4.0",
     "@rainblock/ethereum-block": "^0.2.0",
     "@rainblock/merkle-patricia-tree": "^v4.1.0",
+    "@types/stream-chain": "^2.0.0",
+    "@types/stream-json": "^1.0.0",
     "bigint-hash": "git+https://github.com/SoujanyaPonnapalli/bigint-hash.git",
     "caporal": "^0.10.0",
     "grpc": "^1.19.0",
     "level-mem": "^3.0.1",
     "multimap": "^1.0.2",
-    "node-ethash": "git+https://github.com/SoujanyaPonnapalli/node-ethash.git"
+    "node-ethash": "git+https://github.com/SoujanyaPonnapalli/node-ethash.git",
+    "stream-chain": "^2.1.0",
+    "stream-json": "^1.2.0",
+    "wait-for-stuff": "^1.4.0"
   },
   "contributors": [
     "Michael Wei (https://gitlab.com/no2chem)"

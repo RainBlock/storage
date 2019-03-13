@@ -1,9 +1,11 @@
 import {decodeBlock, EthereumBlock} from '@rainblock/ethereum-block';
-import {BatchPut, MerklePatriciaTree, RlpWitness, verifyWitness, Witness} from '@rainblock/merkle-patricia-tree';
-import {toBigIntBE} from 'bigint-buffer';
-import {hashAsBigInt, HashType} from 'bigint-hash';
+import {BatchPut, MerklePatriciaTree, RlpWitness, verifyWitness} from '@rainblock/merkle-patricia-tree';
+import {toBigIntBE, toBufferBE} from 'bigint-buffer';
+import {hashAsBigInt, hashAsBuffer, HashType} from 'bigint-hash';
 import * as fs from 'fs-extra';
-import {RlpEncode, RlpList} from 'rlp-stream';
+import {RlpDecode, RlpEncode, RlpList} from 'rlp-stream';
+
+import {ethereumAccountToRlp, gethAccountToEthAccount, GethStateDumpAccount, getStateFromGethJSON} from './utils';
 
 const nodeEthash = require('node-ethash');
 const level = require('level-mem');
@@ -13,7 +15,7 @@ const multiMap = require('multimap');
 export interface Storage<K = Buffer, V = Buffer> {
   isEmpty: () => boolean;
   get: (key: Buffer, root?: Buffer) => RlpWitness;
-  putGenesis: (genesis: RlpList, putOps: BatchPut[]) => void;
+  putGenesis: (genesisJSON?: string, genesisBIN?: string) => void;
   update: (block: RlpList, putOps: BatchPut[], delOps: Buffer[]) => void;
   prove: (root: Buffer, key: Buffer, witness: RlpWitness) => boolean;
   getRecentBlocks: () => Buffer[];
@@ -57,15 +59,16 @@ export class StorageNode<K = Buffer, V = Buffer> implements
 
   _highestBlockNumber = -1n;
 
-  constructor(shard?: number, genesis?: RlpList, putOps?: BatchPut[]) {
+  _InternalStorage = new Map<
+      bigint, {trie: MerklePatriciaTree<bigint, string>, code: Buffer}>();
+
+  constructor(shard?: number, genesisJSON?: string, genesisBIN?: string) {
     const date = new Date().toISOString().replace(/T/, ' ').replace(/\..+/, '');
     const filename = ('./logs/' + date + '.log').split(' ').join('');
     this._logFile = fs.createWriteStream(filename, {flags: 'a'});
 
     this._shard = (shard && shard >= 0 && shard < 16) ? shard : -1;
-    if (genesis && putOps) {
-      this.putGenesis(genesis, putOps);
-    }
+    this.putGenesis(genesisJSON, genesisBIN);
   }
 
   verifyPOW(block: RlpList) {
@@ -111,16 +114,48 @@ export class StorageNode<K = Buffer, V = Buffer> implements
     }
   }
 
-  putGenesis(rlpGenesis: RlpList, putOps: BatchPut[]) {
-    const genesis: EthereumBlock = decodeBlock(rlpGenesis);
+  private _updateStorageEntries(
+      storage: GethStateDumpAccount['storage'], root: string, code: string) {
+    const storageEntries = Object.entries(storage);
+    if (storageEntries.length > 0) {
+      const internalTrie = new MerklePatriciaTree<bigint, string>({
+        keyConverter: k => hashAsBuffer(HashType.KECCAK256, toBufferBE(k, 32)),
+        valueConverter: v => Buffer.from(v, 'hex'),
+        putCanDelete: false
+      });
+      for (const [key, value] of storageEntries) {
+        internalTrie.put(BigInt(`0x${key}`), value);
+      }
+      this._InternalStorage.set(toBigIntBE(Buffer.from(root, 'hex')), {
+        trie: internalTrie,
+        code: Buffer.from(code, 'hex'),
+      });
+    }
+  }
+
+  putGenesis(genesisJSON?: string, genesisBIN?: string) {
     if (!this.isEmpty()) {
-      throw new Error('Invalid: putGenesis when Blockchain not empty');
+      throw new Error('Invalid: putGenesis when blockchain not empty');
+    }
+    const putOps = getStateFromGethJSON(
+        __dirname + '/' +
+        ((!genesisJSON) ? 'test_data/genesis.json' : genesisJSON));
+
+    const trie = new MerklePatriciaTree<Buffer, GethStateDumpAccount>({
+      keyConverter: k => hashAsBuffer(HashType.KECCAK256, k),
+      valueConverter: v => ethereumAccountToRlp(gethAccountToEthAccount(v)),
+      putCanDelete: false
+    });
+    trie.batch(putOps);
+    for (const put of putOps) {
+      this._updateStorageEntries(put.val.storage, put.val.root, put.val.code);
     }
 
-    const trie = new MerklePatriciaTree();
-    const root = toBigIntBE(trie.batch(putOps));
-    this.verifyPOW(rlpGenesis);
-    this.persist(rlpGenesis, putOps, []);
+    const data = fs.readFileSync(
+        __dirname + '/' +
+        ((!genesisBIN) ? 'test_data/genesis.bin' : genesisBIN));
+    const rlpGenesis = RlpDecode(data) as RlpList;
+    const genesis = decodeBlock(rlpGenesis);
 
     const blockNum = genesis.header.blockNumber;
     const blockHash = computeBlockHash(rlpGenesis);
