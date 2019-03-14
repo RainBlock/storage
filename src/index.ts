@@ -1,5 +1,5 @@
 import {decodeBlock, EthereumBlock} from '@rainblock/ethereum-block';
-import {BatchPut, MerklePatriciaTree, RlpWitness, verifyWitness} from '@rainblock/merkle-patricia-tree';
+import {BatchPut, MerklePatriciaTree, RlpWitness, verifyWitness, Witness} from '@rainblock/merkle-patricia-tree';
 import {toBigIntBE, toBufferBE} from 'bigint-buffer';
 import {hashAsBigInt, hashAsBuffer, HashType} from 'bigint-hash';
 import * as fs from 'fs-extra';
@@ -336,10 +336,14 @@ export class StorageNode<K = Buffer, V = Buffer> implements
   }
 
   getCode(address: Buffer, codeOnly: boolean):
-      {code: Buffer|undefined, account: Buffer|undefined} {
-    const currentSnapshot = this._activeSnapshots.get(this._highestBlockNumber);
-    const rlpwitness = currentSnapshot.get(address);
-    const rlpaccount = rlpwitness.value;
+      {code: Buffer|undefined, account: RlpWitness|undefined} {
+    const currentSnapshot : MerklePatriciaTree = this._activeSnapshots.get(this._highestBlockNumber);
+    const witness = currentSnapshot.get(address);
+    const rlpaccount = witness.value;
+    const rlpwitness = currentSnapshot.rlpSerializeWitness(witness);
+    if (!rlpaccount) {
+      throw new Error("Cannot find account to read storage from");
+    }
     const account = rlpToEthereumAccount(RlpDecode(rlpaccount) as RlpList);
     const codeHash = account.codeHash;
     const code = this._CodeStorage.get(codeHash);
