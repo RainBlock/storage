@@ -1,8 +1,8 @@
-import * as protoLoader from '@grpc/proto-loader';
-import * as snode from './index';
 const grpc = require('grpc');
+const protoLoader = require('@grpc/proto-loader');
+const snode = require('../build/src/index');
 
-const protoFileName: string = __dirname + '/../../proto/client-storage.proto';
+const protoFileName = __dirname + '/../proto/client-storage.proto';
 const protoLoaderOptions = {
   keepCase: true,
   longs: String,
