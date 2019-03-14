@@ -338,14 +338,15 @@ export class StorageNode<K = Buffer, V = Buffer> implements
   getCode(address: Buffer, codeOnly: boolean):
       {code: Buffer|undefined, account: Buffer|undefined} {
     const currentSnapshot = this._activeSnapshots.get(this._highestBlockNumber);
-    const rlpaccount = currentSnapshot.get(address).value;
+    const rlpwitness = currentSnapshot.get(address);
+    const rlpaccount = rlpwitness.value;
     const account = rlpToEthereumAccount(RlpDecode(rlpaccount) as RlpList);
     const codeHash = account.codeHash;
     const code = this._CodeStorage.get(codeHash);
     if (codeOnly) {
       return {code, account: undefined};
     }
-    return {code, account: rlpaccount};
+    return {code, account: rlpwitness};
   }
 
 
