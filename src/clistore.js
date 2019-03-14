@@ -84,6 +84,14 @@ function getStorage(call) {
     return storagereply;
 }
 
+function getBlockHash(call) {
+    let resp = storageNode.getBlockHash(call.request.number);
+    const blockhashreply = {
+        hashes: resp
+    };
+    return blockhashreply;
+}
+
 // Start the server
 server.bind('0.0.0.0:50051', grpc.ServerCredentials.createInsecure());
 server.start();
