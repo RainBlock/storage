@@ -323,11 +323,21 @@ export class StorageNode<K = Buffer, V = Buffer> implements
   }
 
   getStorage(address: Buffer, key: Buffer): RlpWitness {
-    console.log(this._highestBlockNumber);
-    console.log(this._activeSnapshots);
-    const currentSnapshot = this._activeSnapshots.get(this._highestBlockNumber);
-    const rlpaccount = currentSnapshot.get(address).value;
-    const account = rlpToEthereumAccount(RlpDecode(rlpaccount) as RlpList);
+    const currentSnapshot: MerklePatriciaTree[]|MerklePatriciaTree =
+        this._activeSnapshots.get(this._highestBlockNumber);
+    let state;
+    if (currentSnapshot instanceof Array) {
+      state = currentSnapshot.pop();
+      if (!state) {
+        throw new Error(
+            'getStorage: No states for block ' +
+            this._highestBlockNumber.toString());
+      }
+    } else {
+      state = currentSnapshot;
+    }
+    const rlpaccount = state.get(address).value;
+    const account = rlpToEthereumAccount(RlpDecode(rlpaccount!) as RlpList);
     const storageRoot = account.storageRoot;
     const storageTrie = this._InternalStorage.get(storageRoot);
     if (!storageTrie) {
