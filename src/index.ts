@@ -323,6 +323,8 @@ export class StorageNode<K = Buffer, V = Buffer> implements
   }
 
   getStorage(address: Buffer, key: Buffer): RlpWitness {
+    console.log(this._highestBlockNumber);
+    console.log(this._activeSnapshots);
     const currentSnapshot = this._activeSnapshots.get(this._highestBlockNumber);
     const rlpaccount = currentSnapshot.get(address).value;
     const account = rlpToEthereumAccount(RlpDecode(rlpaccount) as RlpList);
