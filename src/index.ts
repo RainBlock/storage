@@ -5,7 +5,7 @@ import {hashAsBigInt, hashAsBuffer, HashType} from 'bigint-hash';
 import * as fs from 'fs-extra';
 import {RlpDecode, RlpEncode, RlpList} from 'rlp-stream';
 
-import {ethereumAccountToRlp, gethAccountToEthAccount, GethStateDumpAccount, getStateFromGethJSON} from './utils';
+import {EthereumAccount, ethereumAccountToRlp, gethAccountToEthAccount, GethStateDumpAccount, getStateFromGethJSON} from './utils';
 
 const nodeEthash = require('node-ethash');
 const level = require('level-mem');
@@ -145,13 +145,18 @@ export class StorageNode<K = Buffer, V = Buffer> implements
         __dirname + '/' +
         ((!genesisJSON) ? 'test_data/genesis.json' : genesisJSON));
 
-    const trie = new MerklePatriciaTree<Buffer, GethStateDumpAccount>({
+    const trie = new MerklePatriciaTree<Buffer, EthereumAccount>({
       keyConverter: k => hashAsBuffer(HashType.KECCAK256, k),
-      valueConverter: v => ethereumAccountToRlp(gethAccountToEthAccount(v)),
+      valueConverter: v => ethereumAccountToRlp(v),
       putCanDelete: false
     });
-    // TODO: Partition the keys here before inserting into the global state
-    trie.batch(putOps, []);
+    const batchOps = [];
+    for (const put of putOps) {
+      if (this._shard === -1 || (Math.floor(put.key[0] / 16) === this._shard)) {
+        batchOps.push({key: put.key, val: gethAccountToEthAccount(put.val)});
+      }
+    }
+    trie.batch(batchOps, []);
     for (const put of putOps) {
       this._updateStorageEntries(
           put.val.storage, put.val.root, put.val.codeHash, put.val.code);
