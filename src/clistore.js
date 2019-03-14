@@ -30,7 +30,7 @@ function sayHi(call, callback) {
   callback(null, returnHi(call.request));
 }
 
-function getCodeInfo(call) {
+function GetCodeInfo(call) {
     let resp = storageNode.getCode(call.request.address, call.request.codeOnly);
     var existence = (resp.account.value === null ? false : true);
     const proofreply = {
@@ -51,7 +51,7 @@ function getCodeInfo(call) {
     return codereply;
 }
 
-function getAccount(call) {
+function GetAccount(call) {
     let resp = storageNode.get(call.request.address);
     var existence = (resp.value === null ? false : true);
     const proofreply = {
@@ -68,7 +68,7 @@ function getAccount(call) {
     return accreply;
 }
 
-function getStorage(call) {
+function GetStorage(call) {
     let resp = storageNode.getStorage(call.request.address, call.request.key);
 
     const proofreply = {
@@ -84,13 +84,20 @@ function getStorage(call) {
     return storagereply;
 }
 
-function getBlockHash(call) {
+function GetBlockHash(call) {
     let resp = storageNode.getBlockHash(call.request.number);
     const blockhashreply = {
         hashes: resp
     };
     return blockhashreply;
 }
+
+server.addService(proto.storageapi.StorageNode.service, {
+  getBlockHash: GetBlockHash,
+  getStorage: GetStorage,
+  getAccount: GetAccount,
+  getCodeInfo: GetCodeInfo,
+});
 
 // Start the server
 server.bind('0.0.0.0:50051', grpc.ServerCredentials.createInsecure());
