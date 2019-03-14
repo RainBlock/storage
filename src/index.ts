@@ -351,9 +351,20 @@ export class StorageNode<K = Buffer, V = Buffer> implements
       {code: Buffer|undefined, account: RlpWitness|undefined} {
     const currentSnapshot: MerklePatriciaTree =
         this._activeSnapshots.get(this._highestBlockNumber);
-    const witness = currentSnapshot.get(address);
+    let state;
+    if (currentSnapshot instanceof Array) {
+      state = currentSnapshot.pop();
+      if (!state) {
+        throw new Error(
+            'getCode: no states for block' +
+            this._highestBlockNumber.toString());
+      }
+    } else {
+      state = currentSnapshot;
+    }
+    const witness = state.get(address);
     const rlpaccount = witness.value;
-    const rlpwitness = currentSnapshot.rlpSerializeWitness(witness);
+    const rlpwitness = state.rlpSerializeWitness(witness);
     if (!rlpaccount) {
       throw new Error('Cannot find account to read storage from');
     }
