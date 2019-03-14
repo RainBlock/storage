@@ -59,7 +59,7 @@ export class StorageNode<K = Buffer, V = Buffer> implements
 
   _highestBlockNumber = -1n;
 
-  _InternalStorage = new Map<bigint, MerklePatriciaTree<bigint, bigint>>();
+  _InternalStorage = new Map<bigint, MerklePatriciaTree>();
 
   _CodeStorage = new Map<bigint, Buffer>();
 
@@ -120,16 +120,13 @@ export class StorageNode<K = Buffer, V = Buffer> implements
       code: string) {
     const storageEntries = Object.entries(storage);
     if (storageEntries.length > 0) {
-      const internalTrie = new MerklePatriciaTree<bigint, bigint>({
-        keyConverter: k => hashAsBuffer(HashType.KECCAK256, toBufferBE(k, 20)),
-        putCanDelete: false
-      });
+      const internalTrie = new MerklePatriciaTree({putCanDelete: false});
       for (const [key, value] of storageEntries) {
-        const val = BigInt(`0x${value}`);
-        internalTrie.put(BigInt(`0x${key}`), val);
+        const k = hashAsBuffer(HashType.KECCAK256, Buffer.from(key, 'hex'));
+        const v = Buffer.from(value, 'hex');
+        internalTrie.put(k, v);
       }
-      this._InternalStorage.set(
-          toBigIntBE(Buffer.from(root, 'hex')), internalTrie);
+      this._InternalStorage.set(BigInt(`0x${root}`), internalTrie);
 
       const codeBuffer = Buffer.from(code, 'hex');
       const codeHashBuffer = Buffer.from(codeHash, 'hex');
@@ -138,8 +135,8 @@ export class StorageNode<K = Buffer, V = Buffer> implements
   }
 
   private _updateStorageTrie(
-      puts: Array<BatchPut<bigint, bigint>>, dels: Array<bigint>,
-      internalTrie: MerklePatriciaTree<bigint, bigint>): bigint {
+      puts: Array<BatchPut<Buffer, Buffer>>, dels: Buffer[],
+      internalTrie: MerklePatriciaTree): bigint {
     const newTrie = internalTrie.batchCOW(puts, dels);
     const root = toBigIntBE(newTrie.root);
     this._InternalStorage.set(root, newTrie);
@@ -154,15 +151,12 @@ export class StorageNode<K = Buffer, V = Buffer> implements
         __dirname + '/' +
         ((!genesisJSON) ? 'test_data/genesis.json' : genesisJSON));
 
-    const trie = new MerklePatriciaTree<Buffer, EthereumAccount>({
-      keyConverter: k => hashAsBuffer(HashType.KECCAK256, k),
-      valueConverter: v => ethereumAccountToRlp(v),
-      putCanDelete: false
-    });
+    const trie = new MerklePatriciaTree({putCanDelete: false});
     const batchOps = [];
     for (const put of putOps) {
       if (this._shard === -1 || (Math.floor(put.key[0] / 16) === this._shard)) {
-        batchOps.push({key: put.key, val: gethAccountToEthAccount(put.val)});
+        const val = gethAccountToEthAccount(put.val);
+        batchOps.push({key: put.key, val: ethereumAccountToRlp(val)});
       }
     }
     trie.batch(batchOps, []);
@@ -212,7 +206,7 @@ export class StorageNode<K = Buffer, V = Buffer> implements
   private persist(block: RlpList, putOps: UpdateOps) {
     this._logFile.write(RlpEncode(block).toString('hex') + '\n');
     for (const put of putOps.ops) {
-      this._logFile.write(JSON.stringify(put));
+      this._logFile.write(put);
     }
   }
 
@@ -260,14 +254,13 @@ export class StorageNode<K = Buffer, V = Buffer> implements
         } else {
           codeHash = hashAsBigInt(HashType.KECCAK256, Buffer.from(''));
         }
-        const internalTrie = new MerklePatriciaTree<bigint, bigint>({
-          keyConverter: k =>
-              hashAsBuffer(HashType.KECCAK256, toBufferBE(k, 20)),
-          putCanDelete: false
-        });
-        const puts: Array<BatchPut<bigint, bigint>> = [];
+        const internalTrie = new MerklePatriciaTree({putCanDelete: false});
+        const puts: Array<BatchPut<Buffer, Buffer>> = [];
         put.storage.forEach((key, value, map) => {
-          puts.push({key, val: value});
+          puts.push({
+            key: hashAsBuffer(HashType.KECCAK256, toBufferBE(key, 20)),
+            val: Buffer.from(value.toString(), 'hex')
+          });
         });
         const storageRoot = this._updateStorageTrie(puts, [], internalTrie);
         const balance = put.value;
@@ -297,12 +290,15 @@ export class StorageNode<K = Buffer, V = Buffer> implements
         const account = rlpToEthereumAccount(RlpDecode(val!) as RlpList);
         account.balance = put.value;
         const storage = this._InternalStorage.get(account.storageRoot);
-        const puts: Array<BatchPut<bigint, bigint>> = [], dels = [];
+        const puts: Array<BatchPut<Buffer, Buffer>> = [], dels = [];
         for (const op of put.storageUpdates) {
           if (op.type === 'StorageInsertion') {
-            puts.push(op);
+            puts.push({
+              key: hashAsBuffer(HashType.KECCAK256, toBufferBE(op.key, 20)),
+              val: Buffer.from(op.val.toString(), 'hex')
+            });
           } else if (op.type === 'StorageDeletion') {
-            dels.push(op.key);
+            dels.push(hashAsBuffer(HashType.KECCAK256, toBufferBE(op.key, 20)));
           }
         }
         const storageRoot = this._updateStorageTrie(puts, dels, storage!);

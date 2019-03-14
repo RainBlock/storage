@@ -117,19 +117,19 @@ export interface UpdateOps {
   ops: Array<ValueChangeOp|DeletionOp|CreationOp|ExecutionOp>;
 }
 
-interface ValueChangeOp {
+export interface ValueChangeOp {
   type: 'ValueChangeOp';
   account: Buffer;
   value: bigint;
   changes: number;
 }
 
-interface DeletionOp {
+export interface DeletionOp {
   type: 'DeletionOp';
   account: Buffer;
 }
 
-interface CreationOp {
+export interface CreationOp {
   type: 'CreationOp';
   account: Buffer;
   value: bigint;
@@ -137,20 +137,20 @@ interface CreationOp {
   storage: Map<bigint, bigint>;
 }
 
-interface ExecutionOp {
+export interface ExecutionOp {
   type: 'ExecutionOp';
   account: Buffer;
   value: bigint;
   storageUpdates: Array<StorageDeletion|StorageInsertion>;
 }
 
-interface StorageInsertion {
+export interface StorageInsertion {
   type: 'StorageInsertion';
   key: bigint;
   val: bigint;
 }
 
-interface StorageDeletion {
+export interface StorageDeletion {
   type: 'StorageDeletion';
   key: bigint;
 }
