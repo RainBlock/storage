@@ -8,6 +8,7 @@ import {RlpDecoderTransform, RlpList} from 'rlp-stream';
 import {Readable} from 'stream';
 
 import {computeBlockHash, StorageNode} from './index';
+import {UpdateOps} from './utils';
 
 const asyncChunks = require('async-chunks');
 const fs = process.browser ? undefined : require('fs-extra');
@@ -92,7 +93,7 @@ describe('First 10 blocks', async () => {
       const hash = toBufferBE(computeBlockHash(rlpBlocks[i]), 32);
       hash.should.deep.equal(ethBlock.hash());
       if (i !== 0) {
-        snode.update(rlpBlocks[i], [], []);
+        snode.update(rlpBlocks[i], {ops: []} as UpdateOps);
       }
     }
   });

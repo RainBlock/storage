@@ -1,7 +1,8 @@
 import {toBigIntBE, toBufferBE} from 'bigint-buffer';
 import {hashAsBigInt, HashType} from 'bigint-hash';
 import * as fs from 'fs-extra';
-import {RlpEncode, RlpList} from 'rlp-stream/build/src/rlp-stream';
+import {List} from 'lodash';
+import {RlpDecode, RlpEncode, RlpList} from 'rlp-stream/build/src/rlp-stream';
 import {chain} from 'stream-chain';
 import {parser} from 'stream-json';
 import {pick} from 'stream-json/filters/Pick';
@@ -51,6 +52,18 @@ export function ethereumAccountToRlp(account: EthereumAccount): Buffer {
   ] as RlpList);
 }
 
+export function rlpToEthereumAccount(rlpAccount: RlpList): EthereumAccount {
+  if (!Array.isArray(rlpAccount)) {
+    throw new Error(`Expected RLP-encoded list!`);
+  }
+  const nonce = toBigIntBE(rlpAccount[0] as Buffer);
+  const balance = toBigIntBE(rlpAccount[1] as Buffer);
+  const storageRoot = toBigIntBE(rlpAccount[2] as Buffer);
+  const codeHash = toBigIntBE(rlpAccount[3] as Buffer);
+  const account = {nonce, balance, storageRoot, codeHash};
+  return account;
+}
+
 export function getStateFromGethJSON(
     filename: string, compressed = false): GethPutOps[] {
   const prom = _getStateFromGethJSON(filename, compressed);
@@ -98,4 +111,46 @@ async function _getStateFromGethJSON(filename: string, compressed = false) {
     }
     return ops;
   }
+}
+
+export interface UpdateOps {
+  ops: Array<ValueChangeOp|DeletionOp|CreationOp|ExecutionOp>;
+}
+
+interface ValueChangeOp {
+  type: 'ValueChangeOp';
+  account: Buffer;
+  value: bigint;
+  changes: number;
+}
+
+interface DeletionOp {
+  type: 'DeletionOp';
+  account: Buffer;
+}
+
+interface CreationOp {
+  type: 'CreationOp';
+  account: Buffer;
+  value: bigint;
+  code?: Buffer;
+  storage: Map<bigint, bigint>;
+}
+
+interface ExecutionOp {
+  type: 'ExecutionOp';
+  account: Buffer;
+  value: bigint;
+  storageUpdates: Array<StorageDeletion|StorageInsertion>;
+}
+
+interface StorageInsertion {
+  type: 'StorageInsertion';
+  key: bigint;
+  val: bigint;
+}
+
+interface StorageDeletion {
+  type: 'StorageDeletion';
+  key: bigint;
 }

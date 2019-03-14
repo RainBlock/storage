@@ -5,7 +5,7 @@ import {hashAsBigInt, hashAsBuffer, HashType} from 'bigint-hash';
 import * as fs from 'fs-extra';
 import {RlpDecode, RlpEncode, RlpList} from 'rlp-stream';
 
-import {EthereumAccount, ethereumAccountToRlp, gethAccountToEthAccount, GethStateDumpAccount, getStateFromGethJSON} from './utils';
+import {EthereumAccount, ethereumAccountToRlp, gethAccountToEthAccount, GethStateDumpAccount, getStateFromGethJSON, rlpToEthereumAccount, UpdateOps} from './utils';
 
 const nodeEthash = require('node-ethash');
 const level = require('level-mem');
@@ -16,7 +16,7 @@ export interface Storage<K = Buffer, V = Buffer> {
   isEmpty: () => boolean;
   get: (key: Buffer, root?: Buffer) => RlpWitness;
   putGenesis: (genesisJSON?: string, genesisBIN?: string) => void;
-  update: (block: RlpList, putOps: BatchPut[], delOps: Buffer[]) => void;
+  update: (block: RlpList, putOps: UpdateOps) => void;
   prove: (root: Buffer, key: Buffer, witness: RlpWitness) => boolean;
   getRecentBlocks: () => Buffer[];
 }
@@ -59,7 +59,7 @@ export class StorageNode<K = Buffer, V = Buffer> implements
 
   _highestBlockNumber = -1n;
 
-  _InternalStorage = new Map<bigint, MerklePatriciaTree<bigint, string>>();
+  _InternalStorage = new Map<bigint, MerklePatriciaTree<bigint, bigint>>();
 
   _CodeStorage = new Map<bigint, Buffer>();
 
@@ -115,18 +115,18 @@ export class StorageNode<K = Buffer, V = Buffer> implements
     }
   }
 
-  private _updateStorageEntries(
+  private _updateGethStorage(
       storage: GethStateDumpAccount['storage'], root: string, codeHash: string,
       code: string) {
     const storageEntries = Object.entries(storage);
     if (storageEntries.length > 0) {
-      const internalTrie = new MerklePatriciaTree<bigint, string>({
-        keyConverter: k => hashAsBuffer(HashType.KECCAK256, toBufferBE(k, 32)),
-        valueConverter: v => Buffer.from(v, 'hex'),
+      const internalTrie = new MerklePatriciaTree<bigint, bigint>({
+        keyConverter: k => hashAsBuffer(HashType.KECCAK256, toBufferBE(k, 20)),
         putCanDelete: false
       });
       for (const [key, value] of storageEntries) {
-        internalTrie.put(BigInt(`0x${key}`), value);
+        const val = BigInt(`0x${value}`);
+        internalTrie.put(BigInt(`0x${key}`), val);
       }
       this._InternalStorage.set(
           toBigIntBE(Buffer.from(root, 'hex')), internalTrie);
@@ -135,6 +135,15 @@ export class StorageNode<K = Buffer, V = Buffer> implements
       const codeHashBuffer = Buffer.from(codeHash, 'hex');
       this._CodeStorage.set(toBigIntBE(codeHashBuffer), codeBuffer);
     }
+  }
+
+  private _updateStorageTrie(
+      puts: Array<BatchPut<bigint, bigint>>, dels: Array<bigint>,
+      internalTrie: MerklePatriciaTree<bigint, bigint>): bigint {
+    const newTrie = internalTrie.batchCOW(puts, dels);
+    const root = toBigIntBE(newTrie.root);
+    this._InternalStorage.set(root, newTrie);
+    return root;
   }
 
   putGenesis(genesisJSON?: string, genesisBIN?: string) {
@@ -158,7 +167,7 @@ export class StorageNode<K = Buffer, V = Buffer> implements
     }
     trie.batch(batchOps, []);
     for (const put of putOps) {
-      this._updateStorageEntries(
+      this._updateGethStorage(
           put.val.storage, put.val.root, put.val.codeHash, put.val.code);
     }
 
@@ -200,40 +209,32 @@ export class StorageNode<K = Buffer, V = Buffer> implements
     }
   }
 
-  private persist(block: RlpList, putOps: BatchPut[], delOps: Buffer[]) {
+  private persist(block: RlpList, putOps: UpdateOps) {
     this._logFile.write(RlpEncode(block).toString('hex') + '\n');
-    const puts = [];
-    for (const put of putOps) {
-      puts.push([put.key, put.val]);
+    for (const put of putOps.ops) {
+      this._logFile.write(JSON.stringify(put));
     }
-    this._logFile.write(RlpEncode(puts).toString('hex') + '\n');
-    this._logFile.write(RlpEncode(delOps).toString('hex') + '\n');
   }
 
-  private partitionKeys(putOps: BatchPut[], delOps: Buffer[]):
-      [BatchPut[], Buffer[]] {
+  private partitionKeys(putOps: UpdateOps): UpdateOps {
     if (this._shard === -1) {
-      return [putOps, delOps];
+      return putOps;
     }
-    const shardedPutOps = [], shardedDelOps = [];
-    for (const put of putOps) {
-      if (Math.floor(put.key[0] / 16) === this._shard) {
+    const shardedPutOps = [];
+    for (const put of putOps.ops) {
+      const account = put.account;
+      if (Math.floor(account[0] / 16) === this._shard) {
         shardedPutOps.push(put);
       }
     }
-    for (const key of delOps) {
-      if (Math.floor(key[0] / 16) === this._shard) {
-        shardedDelOps.push(key);
-      }
-    }
-    return [shardedPutOps, shardedDelOps];
+    return {ops: shardedPutOps};
   }
 
   /**
    * TODO: Change the interface to take in account modifications only in putOps
    * TODO: Process the storage entries in every account
    */
-  update(rlpBlock: RlpList, putOps: BatchPut[], delOps: Buffer[]) {
+  update(rlpBlock: RlpList, putOps: UpdateOps) {
     this.gc();
     const block: EthereumBlock = decodeBlock(rlpBlock);
     this.verifyPOW(rlpBlock);
@@ -243,15 +244,81 @@ export class StorageNode<K = Buffer, V = Buffer> implements
     if (!parentState) {
       throw new Error('Cannot find parent state');
     }
-    const keys = this.partitionKeys(putOps, delOps);
-    const trie = parentState.batchCOW(keys[0], keys[1]);
+
+    const delOps = [], updateOps: Array<BatchPut<Buffer, Buffer>> = [];
+    for (const put of putOps.ops) {
+      if (Math.floor(put.account[0] / 16) !== this._shard &&
+          this._shard !== -1) {
+        continue;
+      }
+
+      if (put.type === 'CreationOp') {
+        let codeHash;
+        if (put.code !== undefined) {
+          codeHash = hashAsBigInt(HashType.KECCAK256, put.code);
+          this._CodeStorage.set(codeHash, put.code);
+        } else {
+          codeHash = hashAsBigInt(HashType.KECCAK256, Buffer.from(''));
+        }
+        const internalTrie = new MerklePatriciaTree<bigint, bigint>({
+          keyConverter: k =>
+              hashAsBuffer(HashType.KECCAK256, toBufferBE(k, 20)),
+          putCanDelete: false
+        });
+        const puts: Array<BatchPut<bigint, bigint>> = [];
+        put.storage.forEach((key, value, map) => {
+          puts.push({key, val: value});
+        });
+        const storageRoot = this._updateStorageTrie(puts, [], internalTrie);
+        const balance = put.value;
+        const nonce = BigInt(0);
+        const account:
+            EthereumAccount = {balance, nonce, storageRoot, codeHash};
+        updateOps.push({key: put.account, val: ethereumAccountToRlp(account)});
+
+      } else if (put.type === 'DeletionOp') {
+        delOps.push(put.account);
+
+      } else if (put.type === 'ValueChangeOp') {
+        const val = parentState.get(put.account).value;
+        if (!val) {
+          throw new Error('Attempt to update a non-existent value');
+        }
+        const account = rlpToEthereumAccount(RlpDecode(val!) as RlpList);
+        account.nonce += BigInt(put.changes);
+        account.balance = put.value;
+        updateOps.push({key: put.account, val: ethereumAccountToRlp(account)});
+
+      } else if (put.type === 'ExecutionOp') {
+        const val = parentState.get(put.account).value;
+        if (!val) {
+          throw new Error('Attempt to update a non-existent value');
+        }
+        const account = rlpToEthereumAccount(RlpDecode(val!) as RlpList);
+        account.balance = put.value;
+        const storage = this._InternalStorage.get(account.storageRoot);
+        const puts: Array<BatchPut<bigint, bigint>> = [], dels = [];
+        for (const op of put.storageUpdates) {
+          if (op.type === 'StorageInsertion') {
+            puts.push(op);
+          } else if (op.type === 'StorageDeletion') {
+            dels.push(op.key);
+          }
+        }
+        const storageRoot = this._updateStorageTrie(puts, dels, storage!);
+        account.storageRoot = storageRoot;
+        updateOps.push({key: put.account, val: ethereumAccountToRlp(account)});
+      }
+    }
+
+    const trie = parentState.batchCOW(updateOps, delOps);
     const root = toBigIntBE(trie.root);
     const blockNum = block.header.blockNumber;
     const blockHash = computeBlockHash(rlpBlock);
     this._blockchain.set(blockHash, [block, trie]);
     this._blockNumberToHash.set(blockNum, blockHash);
     this._activeSnapshots.set(blockNum, trie);
-    this.persist(rlpBlock, putOps, delOps);
+    this.persist(rlpBlock, putOps);
     this._highestBlockNumber = (this._highestBlockNumber > blockNum) ?
         this._highestBlockNumber :
         blockNum;
