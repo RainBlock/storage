@@ -126,7 +126,10 @@ export class StorageNode<K = Buffer, V = Buffer> implements
         __dirname + '/' +
         ((!genesisJSON) ? 'test_data/genesis.json' : genesisJSON));
 
-    const trie = new MerklePatriciaTree({putCanDelete: false});
+    const trie = new MerklePatriciaTree({
+      keyConverter: k => hashAsBuffer(HashType.KECCAK256, k),
+      putCanDelete: false
+    });
     const batchOps = [];
     for (const put of putOps) {
       if (this._shard === -1 || (Math.floor(put.key[0] / 16) === this._shard)) {
