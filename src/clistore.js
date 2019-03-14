@@ -14,7 +14,7 @@ const protoLoaderOptions = {
 const packageDefinition =
     protoLoader.loadSync(protoFileName, protoLoaderOptions);
 const proto = grpc.loadPackageDefinition(packageDefinition);
-const storageNode = snode.storageNode;
+const storageNode = new snode.storageNode();
 
 const server = new grpc.Server();
 
