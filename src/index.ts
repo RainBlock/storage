@@ -59,8 +59,9 @@ export class StorageNode<K = Buffer, V = Buffer> implements
 
   _highestBlockNumber = -1n;
 
-  _InternalStorage = new Map<
-      bigint, {trie: MerklePatriciaTree<bigint, string>, code: Buffer}>();
+  _InternalStorage = new Map<bigint, MerklePatriciaTree<bigint, string>>();
+
+  _CodeStorage = new Map<bigint, Buffer>();
 
   constructor(shard?: number, genesisJSON?: string, genesisBIN?: string) {
     const date = new Date().toISOString().replace(/T/, ' ').replace(/\..+/, '');
@@ -115,7 +116,7 @@ export class StorageNode<K = Buffer, V = Buffer> implements
   }
 
   private _updateStorageEntries(
-      storage: GethStateDumpAccount['storage'], root: string, code: string) {
+      storage: GethStateDumpAccount['storage'], root: string, codeHash: string, code: string) {
     const storageEntries = Object.entries(storage);
     if (storageEntries.length > 0) {
       const internalTrie = new MerklePatriciaTree<bigint, string>({
@@ -126,10 +127,11 @@ export class StorageNode<K = Buffer, V = Buffer> implements
       for (const [key, value] of storageEntries) {
         internalTrie.put(BigInt(`0x${key}`), value);
       }
-      this._InternalStorage.set(toBigIntBE(Buffer.from(root, 'hex')), {
-        trie: internalTrie,
-        code: Buffer.from(code, 'hex'),
-      });
+      this._InternalStorage.set(toBigIntBE(Buffer.from(root, 'hex')), internalTrie);
+
+      const codeBuffer = Buffer.from(code, 'hex');
+      const codeHashBuffer = Buffer.from(codeHash, 'hex')
+      this._CodeStorage.set(toBigIntBE(codeHashBuffer), codeBuffer);
     }
   }
 
@@ -146,9 +148,10 @@ export class StorageNode<K = Buffer, V = Buffer> implements
       valueConverter: v => ethereumAccountToRlp(gethAccountToEthAccount(v)),
       putCanDelete: false
     });
-    trie.batch(putOps);
+    // TODO: Partition the keys here before inserting into the global state
+    trie.batch(putOps, []);
     for (const put of putOps) {
-      this._updateStorageEntries(put.val.storage, put.val.root, put.val.code);
+      this._updateStorageEntries(put.val.storage, put.val.root, put.val.codeHash, put.val.code);
     }
 
     const data = fs.readFileSync(
@@ -218,6 +221,10 @@ export class StorageNode<K = Buffer, V = Buffer> implements
     return [shardedPutOps, shardedDelOps];
   }
 
+  /**
+   * TODO: Change the interface to take in account modifications only in putOps
+   * TODO: Process the storage entries in every account
+   */
   update(rlpBlock: RlpList, putOps: BatchPut[], delOps: Buffer[]) {
     this.gc();
     const block: EthereumBlock = decodeBlock(rlpBlock);
