@@ -337,12 +337,13 @@ export class StorageNode<K = Buffer, V = Buffer> implements
 
   getCode(address: Buffer, codeOnly: boolean):
       {code: Buffer|undefined, account: RlpWitness|undefined} {
-    const currentSnapshot : MerklePatriciaTree = this._activeSnapshots.get(this._highestBlockNumber);
+    const currentSnapshot: MerklePatriciaTree =
+        this._activeSnapshots.get(this._highestBlockNumber);
     const witness = currentSnapshot.get(address);
     const rlpaccount = witness.value;
     const rlpwitness = currentSnapshot.rlpSerializeWitness(witness);
     if (!rlpaccount) {
-      throw new Error("Cannot find account to read storage from");
+      throw new Error('Cannot find account to read storage from');
     }
     const account = rlpToEthereumAccount(RlpDecode(rlpaccount) as RlpList);
     const codeHash = account.codeHash;
