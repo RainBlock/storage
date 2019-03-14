@@ -116,7 +116,8 @@ export class StorageNode<K = Buffer, V = Buffer> implements
   }
 
   private _updateStorageEntries(
-      storage: GethStateDumpAccount['storage'], root: string, codeHash: string, code: string) {
+      storage: GethStateDumpAccount['storage'], root: string, codeHash: string,
+      code: string) {
     const storageEntries = Object.entries(storage);
     if (storageEntries.length > 0) {
       const internalTrie = new MerklePatriciaTree<bigint, string>({
@@ -127,10 +128,11 @@ export class StorageNode<K = Buffer, V = Buffer> implements
       for (const [key, value] of storageEntries) {
         internalTrie.put(BigInt(`0x${key}`), value);
       }
-      this._InternalStorage.set(toBigIntBE(Buffer.from(root, 'hex')), internalTrie);
+      this._InternalStorage.set(
+          toBigIntBE(Buffer.from(root, 'hex')), internalTrie);
 
       const codeBuffer = Buffer.from(code, 'hex');
-      const codeHashBuffer = Buffer.from(codeHash, 'hex')
+      const codeHashBuffer = Buffer.from(codeHash, 'hex');
       this._CodeStorage.set(toBigIntBE(codeHashBuffer), codeBuffer);
     }
   }
@@ -151,7 +153,8 @@ export class StorageNode<K = Buffer, V = Buffer> implements
     // TODO: Partition the keys here before inserting into the global state
     trie.batch(putOps, []);
     for (const put of putOps) {
-      this._updateStorageEntries(put.val.storage, put.val.root, put.val.codeHash, put.val.code);
+      this._updateStorageEntries(
+          put.val.storage, put.val.root, put.val.codeHash, put.val.code);
     }
 
     const data = fs.readFileSync(
