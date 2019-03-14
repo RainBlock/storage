@@ -34,11 +34,11 @@ function getCodeInfo(call) {
     let resp = storageNode.getCode(call.request.address, call.request.codeOnly);
     var existence = (resp.account.value === null ? false : true);
     const proofreply = {
-        encoding: resp.account.proof;
+        encoding: resp.account.proof
     };
     const witnessreply = {
-      value: resp.account.value;
-      proof: proofreply;
+      value: resp.account.value,
+      proof: proofreply
     };
     const accreply = {
         exists: existence,
@@ -55,11 +55,11 @@ function getAccount(call) {
     let resp = storageNode.get(call.request.address);
     var existence = (resp.value === null ? false : true);
     const proofreply = {
-        encoding: resp.proof;
+        encoding: resp.proof
     };
     const witnessreply = {
-      value: resp.value;
-      proof: proofreply;
+      value: resp.value,
+      proof: proofreply
     };
     const accreply = {
         exists: existence,
@@ -69,7 +69,19 @@ function getAccount(call) {
 }
 
 function getStorage(call) {
-    let resp = storageNode.getStorage(call.)
+    let resp = storageNode.getStorage(call.request.address, call.request.key);
+
+    const proofreply = {
+        encoding: resp.proof
+    };
+    const witnessreply = {
+      value: resp.value,
+      proof: proofreply
+    };
+    const storagereply = {
+        witness: witnessreply
+    };
+    return storagereply;
 }
 
 // Start the server
