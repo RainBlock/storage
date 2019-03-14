@@ -16,7 +16,8 @@ const packageDefinition =
 const proto = grpc.loadPackageDefinition(packageDefinition);
 
 const server = new grpc.Server();
-const storageNode = new snode.StorageNode();
+const storageNode = new snode.StorageNode(
+    -1, '../../src/test_data/genesis.json', '../../src/test_data/genesis.bin');
 
 export interface GetInputMsg {
   key: Buffer;
@@ -27,7 +28,7 @@ export interface GetInputMsg {
 server.addService(proto.storageNode.verifierToStorage.service, {
 
   get(input: GetInputMsg) {
-    const ret = storageNode.get(input.key, input.root);
+    const ret = storageNode.get(input.key);
     return ret;
   },
 

@@ -15,7 +15,6 @@ message emptyMsg {}
 */
 message getInputMsg {
   bytes key = 1;
-  bytes root = 2;
 }
 
 /*

@@ -90,31 +90,6 @@ export class StorageNode<K = Buffer, V = Buffer> implements
     return true;
   }
 
-  get(key: Buffer, root?: Buffer): RlpWitness {
-    const stateList: MerklePatriciaTree[]|MerklePatriciaTree =
-        this._activeSnapshots.get(this._highestBlockNumber);
-    if (root) {
-      if (stateList instanceof Array) {
-        for (const state of stateList) {
-          if (state.root.compare(root) === 0) {
-            return state.rlpSerializeWitness(state.get(key));
-          }
-        }
-        const s = stateList.pop();
-        return s!.rlpSerializeWitness(s!.get(key));
-      } else {
-        return stateList.rlpSerializeWitness(stateList.get(key));
-      }
-    } else {
-      if (stateList instanceof Array) {
-        const s = stateList.pop();
-        return s!.rlpSerializeWitness(s!.get(key));
-      } else {
-        return stateList.rlpSerializeWitness(stateList.get(key));
-      }
-    }
-  }
-
   private _updateGethStorage(
       storage: GethStateDumpAccount['storage'], root: string, codeHash: string,
       code: string) {
@@ -328,6 +303,51 @@ export class StorageNode<K = Buffer, V = Buffer> implements
     }
     return retVal;
   }
+
+  getBlockHash(blockNum: number): Buffer[] {
+    if (blockNum === -1) {
+      return this.getRecentBlocks();
+    }
+    return this._blockNumberToHash.get(blockNum);
+  }
+
+  get(address: Buffer): RlpWitness {
+    const stateList: MerklePatriciaTree[]|MerklePatriciaTree =
+        this._activeSnapshots.get(this._highestBlockNumber);
+    if (stateList instanceof Array) {
+      const s = stateList.pop();
+      return s!.rlpSerializeWitness(s!.get(address));
+    } else {
+      return stateList.rlpSerializeWitness(stateList.get(address));
+    }
+  }
+
+  getStorage(address: Buffer, key: Buffer): RlpWitness {
+    const currentSnapshot = this._activeSnapshots.get(this._highestBlockNumber);
+    const rlpaccount = currentSnapshot.get(address).value;
+    const account = rlpToEthereumAccount(RlpDecode(rlpaccount) as RlpList);
+    const storageRoot = account.storageRoot;
+    const storageTrie = this._InternalStorage.get(storageRoot);
+    if (!storageTrie) {
+      return {value: null, proof: []};
+    }
+    const ret = storageTrie.get(key);
+    return storageTrie.rlpSerializeWitness(ret);
+  }
+
+  getCode(address: Buffer, codeOnly: boolean):
+      {code: Buffer|undefined, account: Buffer|undefined} {
+    const currentSnapshot = this._activeSnapshots.get(this._highestBlockNumber);
+    const rlpaccount = currentSnapshot.get(address).value;
+    const account = rlpToEthereumAccount(RlpDecode(rlpaccount) as RlpList);
+    const codeHash = account.codeHash;
+    const code = this._CodeStorage.get(codeHash);
+    if (codeOnly) {
+      return {code, account: undefined};
+    }
+    return {code, account: rlpaccount};
+  }
+
 
   prove(root: Buffer, key: Buffer, witness: RlpWitness): boolean {
     verifyWitness(root, key, witness);
