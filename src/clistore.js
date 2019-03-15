@@ -1,6 +1,7 @@
 const grpc = require('grpc');
 const protoLoader = require('@grpc/proto-loader');
 const snode = require('../build/src/index');
+const path = require('path');
 
 const protoFileName = __dirname + '/../proto/client-storage.proto';
 const protoLoaderOptions = {
@@ -11,10 +12,12 @@ const protoLoaderOptions = {
   oneofs: true
 };
 
+console.log(path.resolve('.'), path.resolve(__dirname));
+
 const packageDefinition =
   protoLoader.loadSync(protoFileName, protoLoaderOptions);
 const proto = grpc.loadPackageDefinition(packageDefinition);
-const storageNode = new snode.StorageNode(-1, "../../src/test_data/genesis.json", "../../src/test_data/genesis.bin");
+const storageNode = new snode.StorageNode(-1, __dirname + "/test_data/genesis.json", __dirname + "/test_data/genesis.bin");
 
 const server = new grpc.Server();
 console.log("Started");
