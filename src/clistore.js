@@ -12,15 +12,13 @@ const protoLoaderOptions = {
   oneofs: true
 };
 
-console.log(path.resolve('.'), path.resolve(__dirname));
-
 const packageDefinition =
   protoLoader.loadSync(protoFileName, protoLoaderOptions);
 const proto = grpc.loadPackageDefinition(packageDefinition);
 const storageNode = new snode.StorageNode(-1, __dirname + "/test_data/genesis.json", __dirname + "/test_data/genesis.bin");
 
 const server = new grpc.Server();
-console.log("Started");
+
 function returnHi(hirequest) {
   let hiresponse = {
   greeting: "Hi from server"

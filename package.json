@@ -13,7 +13,7 @@
     "typedoc": "typedoc --out docs $(pwd)/src --target es6 --mode file --tsconfig ./tsconfig.json --excludePrivate --excludeProtected --excludeNotExported --exclude '**/*+(spec|bench).ts'",
     "check": "gts check",
     "clean": "gts clean",
-    "compile": "mkdir -p build/src; mkdir -p build/logs; tsc -p .",
+    "compile": "mkdir -p build/src; mkdir logs; tsc -p .",
     "fix": "gts fix",
     "pretest": "npm run compile",
     "posttest": "npm run check",
