@@ -5,7 +5,7 @@ import {hashAsBigInt, hashAsBuffer, HashType} from 'bigint-hash';
 import * as fs from 'fs-extra';
 import {RlpDecode, RlpEncode, RlpList} from 'rlp-stream';
 
-import {EthereumAccount, ethereumAccountToRlp, gethAccountToEthAccount, GethStateDumpAccount, getStateFromGethJSON, rlpToEthereumAccount, UpdateOps} from './utils';
+import {computeBlockHash, EthereumAccount, ethereumAccountToRlp, gethAccountToEthAccount, GethStateDumpAccount, getStateFromGethJSON, rlpToEthereumAccount, UpdateOps} from './utils';
 
 const nodeEthash = require('node-ethash');
 const level = require('level-mem');
@@ -15,16 +15,14 @@ const multiMap = require('multimap');
 export interface Storage<K = Buffer, V = Buffer> {
   isEmpty: () => boolean;
   get: (key: Buffer, root?: Buffer) => RlpWitness;
+  getCode: (address: Buffer, codeOnly: boolean) => {
+    code: Buffer|undefined, account: RlpWitness|undefined
+  };
+  getStorage: (address: Buffer, key: Buffer) => RlpWitness;
   putGenesis: (genesisJSON?: string, genesisBIN?: string) => void;
   update: (block: RlpList, putOps: UpdateOps) => void;
   prove: (root: Buffer, key: Buffer, witness: RlpWitness) => boolean;
   getRecentBlocks: () => Buffer[];
-}
-
-export function computeBlockHash(block: RlpList): bigint {
-  const blockBuffer = RlpEncode(block[0]);
-  const hash = hashAsBigInt(HashType.KECCAK256, blockBuffer);
-  return hash;
 }
 
 export class StorageNode<K = Buffer, V = Buffer> implements

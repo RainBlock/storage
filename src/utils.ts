@@ -12,6 +12,12 @@ import * as zlib from 'zlib';
 const asyncChunks = require('async-chunks');
 const wait = require('wait-for-stuff');
 
+export function computeBlockHash(block: RlpList): bigint {
+  const blockBuffer = RlpEncode(block[0]);
+  const hash = hashAsBigInt(HashType.KECCAK256, blockBuffer);
+  return hash;
+}
+
 export interface GethStateDumpAccount {
   balance: string;
   nonce: number;
