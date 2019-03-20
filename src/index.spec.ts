@@ -1,14 +1,15 @@
 import 'mocha';
 
-import {toBufferBE} from 'bigint-buffer';
+import {toBigIntBE, toBufferBE} from 'bigint-buffer';
 import {hashAsBigInt, HashType} from 'bigint-hash';
 import * as chai from 'chai';
+import {read} from 'fs-extra';
 import * as path from 'path';
 import {RlpDecode, RlpDecoderTransform, RlpList} from 'rlp-stream';
 import {Readable} from 'stream';
 
 import {StorageNode} from './index';
-import {computeBlockHash, ethereumAccountToRlp, rlpToEthereumAccount} from './utils';
+import {computeBlockHash, CreationOp, DeletionOp, EthereumAccount, ethereumAccountToRlp, ExecutionOp, rlpToEthereumAccount, StorageInsertion, UpdateOps, ValueChangeOp} from './utils';
 
 const asyncChunks = require('async-chunks');
 const fs = process.browser ? undefined : require('fs-extra');
@@ -48,7 +49,7 @@ const assertEquals = (n0: BigInt, n1: BigInt) => {
   n0.toString(16).should.equal(n1.toString(16));
 };
 
-describe('Test utility functions', async () => {
+describe('Utility functions', async () => {
   const rlpBlocks: RlpList[] = [];
 
   before(async () => {
@@ -76,7 +77,7 @@ describe('Test utility functions', async () => {
   });
 });
 
-describe('Load Genesis Tests', async () => {
+describe('Load Genesis', async () => {
   it('Loading Genesis block, state roots should match', async () => {
     const genesisRoot = Buffer.from(
         'd7f8974fb5ac78d9ac099b9ad5018bedc2ce0a72dad1827a1709da30580f0544',
@@ -95,7 +96,7 @@ describe('Load Genesis Tests', async () => {
   });
 });
 
-describe('Test client <-> storage functions', async () => {
+describe('Client <-> storage functions', async () => {
   it('GetAccount: existing account', async () => {
     const account =
         Buffer.from('000d836201318ec6899a67540690382780743280', 'hex');
@@ -116,7 +117,7 @@ describe('Test client <-> storage functions', async () => {
 
   it('GetAccount: non-existing account', async () => {
     const account =
-        Buffer.from('0xxd836201318ec6899a67540690382780743280', 'hex');
+        Buffer.from('000abcdefabcdefabcdef0001234567890abcdef', 'hex');
     const accountVal = snode.get(account).value;
     should.not.exist(accountVal);
   });
@@ -140,7 +141,7 @@ describe('Test client <-> storage functions', async () => {
 
   it('GetCode: non existing account', async () => {
     const account =
-        Buffer.from('0xxd836201318ec6899a67540690382780743280', 'hex');
+        Buffer.from('000abcdefabcdefabcdef0001234567890abcdef', 'hex');
     let codeAndAccount = snode.getCode(account, false);
     should.not.exist(codeAndAccount.account!.value);
     should.not.exist(codeAndAccount.code);
@@ -152,15 +153,15 @@ describe('Test client <-> storage functions', async () => {
 
   it('GetStorage: non existing account', async () => {
     const account =
-        Buffer.from('0xxd836201318ec6899a67540690382780743280', 'hex');
-    const storage = snode.getStorage(account, account);
+        Buffer.from('000abcdefabcdefabcdef0001234567890abcdef', 'hex');
+    const storage = snode.getStorage(account, toBigIntBE(account));
     should.not.exist(storage);
   });
 
   it('GetStorage: existing account but non existing storage', async () => {
     const account =
         Buffer.from('000d836201318ec6899a67540690382780743280', 'hex');
-    const storage = snode.getStorage(account, account);
+    const storage = snode.getStorage(account, toBigIntBE(account));
     should.not.exist(storage!.value);
   });
 
@@ -175,5 +176,183 @@ describe('Test client <-> storage functions', async () => {
     assertEquals(BigInt(recentBlocks.length), BigInt(1));
     const blocks = snode.getBlockHash(BigInt(0));
     blocks.should.deep.equal(recentBlocks);
+  });
+});
+
+describe('Verifier <-> storage update with CreationOP', async () => {
+  const address =
+      Buffer.from('000abcdefabcdefabcdef0001234567890abcdef', 'hex');
+  const balance = BigInt(10);
+  const code = address;
+  const codeHash = hashAsBigInt(HashType.KECCAK256, code);
+  const storage = new Map<bigint, bigint>();
+  storage.set(toBigIntBE(address), toBigIntBE(address));
+  const newAccount: CreationOp =
+      {type: 'CreationOp', account: address, value: balance, code, storage};
+
+  const rlpBlocks: RlpList[] = [];
+  before(async () => {
+    for await (const chunk of asyncChunks(await loadStream(BLOCK_FIRST10))) {
+      rlpBlocks.push(chunk);
+    }
+  });
+
+  it('Should be able to read account', async () => {
+    snode.update(rlpBlocks[1], {ops: [newAccount]} as UpdateOps);
+    const accountVal = snode.get(address).value;
+    const rlpAccount = RlpDecode(accountVal!) as RlpList;
+    const ethAccount = rlpToEthereumAccount(rlpAccount);
+    assertEquals(ethAccount.nonce, BigInt(0));
+    assertEquals(ethAccount.balance, balance);
+    assertEquals(ethAccount.codeHash, codeHash);
+  });
+
+  it('Should be able to read code', async () => {
+    const readCode = snode.getCode(address, true).code;
+    should.exist(readCode);
+    readCode!.should.deep.equal(code);
+  });
+
+  it('Should be able to read storage', async () => {
+    const readStorage = snode.getStorage(address, toBigIntBE(address));
+    const val = readStorage!.value!;
+    val.should.deep.equal(address);
+  });
+});
+
+describe('Verifier <-> storage update with ValueChangeOp', async () => {
+  const address =
+      Buffer.from('000abcdefabcdefabcdef0001234567890abcdef', 'hex');
+  const balance = BigInt(100);
+  const changes = 20;
+  const codeHash = hashAsBigInt(HashType.KECCAK256, address);
+  const updateAccount: ValueChangeOp =
+      {type: 'ValueChangeOp', account: address, value: balance, changes};
+
+  const rlpBlocks: RlpList[] = [];
+  before(async () => {
+    for await (const chunk of asyncChunks(await loadStream(BLOCK_FIRST10))) {
+      rlpBlocks.push(chunk);
+    }
+  });
+
+  it('Should be able to read the modified account', async () => {
+    snode.update(rlpBlocks[2], {ops: [updateAccount]} as UpdateOps);
+    const accountVal = snode.get(address).value;
+    const rlpAccount = RlpDecode(accountVal!) as RlpList;
+    const ethAccount = rlpToEthereumAccount(rlpAccount);
+    assertEquals(ethAccount.codeHash, codeHash);
+  });
+
+  it('Account should reflect new balance and nonce', async () => {
+    const accountVal = snode.get(address).value;
+    const rlpAccount = RlpDecode(accountVal!) as RlpList;
+    const ethAccount = rlpToEthereumAccount(rlpAccount);
+    assertEquals(ethAccount.nonce, BigInt(20));
+    assertEquals(ethAccount.balance, balance);
+  });
+
+  it('Should be able to read unmodified code', async () => {
+    const readCode = snode.getCode(address, true).code;
+    should.exist(readCode);
+    readCode!.should.deep.equal(address);
+  });
+
+  it('Should be able to read unmodified storage', async () => {
+    const readStorage = snode.getStorage(address, toBigIntBE(address));
+    const val = readStorage!.value!;
+    val.should.deep.equal(address);
+  });
+});
+
+describe('Verifier <-> storage update with ExecutionOP', async () => {
+  const address =
+      Buffer.from('000abcdefabcdefabcdef0001234567890abcdef', 'hex');
+  const balance = BigInt(200);
+  const codeHash = hashAsBigInt(HashType.KECCAK256, address);
+  const updatedStorageValue =
+      Buffer.from('0000000000000000000000001234567890000000', 'hex');
+
+  const storageUpdates = [{
+    type: 'StorageInsertion',
+    key: toBigIntBE(address),
+    val: toBigIntBE(updatedStorageValue),
+  } as StorageInsertion];
+
+  const updateAccount: ExecutionOp =
+      {type: 'ExecutionOp', account: address, value: balance, storageUpdates};
+
+  const rlpBlocks: RlpList[] = [];
+  before(async () => {
+    for await (const chunk of asyncChunks(await loadStream(BLOCK_FIRST10))) {
+      rlpBlocks.push(chunk);
+    }
+  });
+
+  it('Should be able to read the modified account', async () => {
+    snode.update(rlpBlocks[3], {ops: [updateAccount]} as UpdateOps);
+    const accountVal = snode.get(address).value;
+    const rlpAccount = RlpDecode(accountVal!) as RlpList;
+    const ethAccount = rlpToEthereumAccount(rlpAccount);
+    assertEquals(ethAccount.balance, balance);
+    assertEquals(ethAccount.codeHash, codeHash);
+  });
+
+  it('Account should have the updated balance', async () => {
+    const accountVal = snode.get(address).value;
+    const rlpAccount = RlpDecode(accountVal!) as RlpList;
+    const ethAccount = rlpToEthereumAccount(rlpAccount);
+    assertEquals(ethAccount.balance, balance);
+  });
+
+  it('Account should have the modified storage', async () => {
+    const readStorage = snode.getStorage(address, toBigIntBE(address));
+    const val = readStorage!.value!;
+    val.should.deep.equal(updatedStorageValue);
+  });
+
+  it('Should be able to read unmodified code', async () => {
+    const readCode = snode.getCode(address, true).code;
+    should.exist(readCode);
+    readCode!.should.deep.equal(address);
+  });
+});
+
+describe('Verifier <-> storage update with DeletionOp', async () => {
+  const address =
+      Buffer.from('000abcdefabcdefabcdef0001234567890abcdef', 'hex');
+
+  const updateAccount: DeletionOp = {type: 'DeletionOp', account: address};
+
+  const rlpBlocks: RlpList[] = [];
+  before(async () => {
+    for await (const chunk of asyncChunks(await loadStream(BLOCK_FIRST10))) {
+      rlpBlocks.push(chunk);
+    }
+  });
+
+  it('Should delete the account', async () => {
+    snode.update(rlpBlocks[4], {ops: [updateAccount]} as UpdateOps);
+    const accountVal = snode.get(address).value;
+    should.not.exist(accountVal);
+  });
+
+  it('Should delete the deleted account\'s storage', async () => {
+    const readStorage = snode.getStorage(address, toBigIntBE(address));
+    should.not.exist(readStorage);
+  });
+
+  it('Should delete the deleted accounts code', async () => {
+    const readCode = snode.getCode(address, true).code;
+    should.not.exist(readCode);
+  });
+
+  it('Global state root hash should match genesis state hash', async () => {
+    const last = snode._highestBlockNumber;
+    const root = snode._activeSnapshots.get(last)[0].root;
+    const genRoot = Buffer.from(
+        'd7f8974fb5ac78d9ac099b9ad5018bedc2ce0a72dad1827a1709da30580f0544',
+        'hex');
+    root.should.deep.equal(genRoot);
   });
 });

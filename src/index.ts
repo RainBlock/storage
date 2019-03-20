@@ -18,7 +18,7 @@ export interface Storage<K = Buffer, V = Buffer> {
   getCode: (address: Buffer, codeOnly: boolean) => {
     code: Buffer|undefined, account: RlpWitness|undefined
   };
-  getStorage: (address: Buffer, key: Buffer) => RlpWitness | null;
+  getStorage: (address: Buffer, key: bigint) => RlpWitness | null;
   putGenesis: (genesisJSON?: string, genesisBIN?: string) => void;
   update: (block: RlpList, putOps: UpdateOps) => void;
   prove: (root: Buffer, key: Buffer, witness: RlpWitness) => boolean;
@@ -49,8 +49,6 @@ export class StorageNode<K = Buffer, V = Buffer> implements
 
   _gcThreshold = 256n;
 
-  _cacheDB = new level();
-
   _logFile: fs.WriteStream;
 
   _lowestBlockNumber = -1n;
@@ -71,12 +69,13 @@ export class StorageNode<K = Buffer, V = Buffer> implements
   }
 
   verifyPOW(block: RlpList) {
-    const _ethash = new nodeEthash(this._cacheDB);
+    const _cacheDB = new level();
+    const _ethash = new nodeEthash(_cacheDB);
     const ethBlock = new ethjsBlock(block);
-    const blockNumber = ethBlock.header.number.toString('hex') + '\n';
+    const blockNumber = ethBlock.header.number.toString('hex') + '\n#';
     _ethash.verifyPOW(ethBlock, (result: boolean) => {
       this._logFile.write(
-          result ? 'Valid ' + blockNumber : 'Invalid ' + blockNumber);
+          result ? '\nValid ' + blockNumber : '\nInvalid ' + blockNumber);
     });
   }
 
@@ -128,7 +127,7 @@ export class StorageNode<K = Buffer, V = Buffer> implements
     });
     const batchOps = [];
     for (const put of putOps) {
-      if (this._shard === -1 || (Math.floor(put.key[0] / 16) === this._shard)) {
+      if (this.belongsInShard(put.key)) {
         const val = gethAccountToEthAccount(put.val);
         batchOps.push({key: put.key, val: ethereumAccountToRlp(val)});
       }
@@ -176,33 +175,27 @@ export class StorageNode<K = Buffer, V = Buffer> implements
     }
   }
 
+  // TODO: Fix the UpdateOps prints
   private persist(block: RlpList, putOps: UpdateOps) {
     this._logFile.write(RlpEncode(block));
     this._logFile.write('\n#');
     for (const put of putOps.ops) {
       this._logFile.write('\n');
-      this._logFile.write(put);
+      this._logFile.write(put.toString());
     }
     this._logFile.write('\n#');
   }
 
-  private partitionKeys(putOps: UpdateOps): UpdateOps {
-    if (this._shard === -1) {
-      return putOps;
+  private belongsInShard(account: Buffer): boolean {
+    if ((this._shard === -1) || (Math.floor(account[0] / 16) === this._shard)) {
+      return true;
     }
-    const shardedPutOps = [];
-    for (const put of putOps.ops) {
-      const account = put.account;
-      if (Math.floor(account[0] / 16) === this._shard) {
-        shardedPutOps.push(put);
-      }
-    }
-    return {ops: shardedPutOps};
+    return false;
   }
 
   /**
-   * TODO: Change the interface to take in account modifications only in putOps
-   * TODO: Process the storage entries in every account
+   * TODO: Take in merkle_tree_nodes and verify the sharded state against
+   *       global root
    */
   update(rlpBlock: RlpList, putOps: UpdateOps) {
     this.gc();
@@ -217,8 +210,7 @@ export class StorageNode<K = Buffer, V = Buffer> implements
 
     const delOps = [], updateOps: Array<BatchPut<Buffer, Buffer>> = [];
     for (const put of putOps.ops) {
-      if (Math.floor(put.account[0] / 16) !== this._shard &&
-          this._shard !== -1) {
+      if (!this.belongsInShard(put.account)) {
         continue;
       }
 
@@ -235,7 +227,7 @@ export class StorageNode<K = Buffer, V = Buffer> implements
         put.storage.forEach((key, value, map) => {
           puts.push({
             key: hashAsBuffer(HashType.KECCAK256, toBufferBE(key, 20)),
-            val: Buffer.from(value.toString(), 'hex')
+            val: toBufferBE(key, 20)
           });
         });
         const storageRoot = this._updateStorageTrie(puts, [], internalTrie);
@@ -271,7 +263,7 @@ export class StorageNode<K = Buffer, V = Buffer> implements
           if (op.type === 'StorageInsertion') {
             puts.push({
               key: hashAsBuffer(HashType.KECCAK256, toBufferBE(op.key, 20)),
-              val: Buffer.from(op.val.toString(), 'hex')
+              val: toBufferBE(op.val, 20)
             });
           } else if (op.type === 'StorageDeletion') {
             dels.push(hashAsBuffer(HashType.KECCAK256, toBufferBE(op.key, 20)));
@@ -324,7 +316,7 @@ export class StorageNode<K = Buffer, V = Buffer> implements
     }
   }
 
-  getStorage(address: Buffer, key: Buffer): RlpWitness|null {
+  getStorage(address: Buffer, key: bigint): RlpWitness|null {
     const currentSnapshot: MerklePatriciaTree[]|MerklePatriciaTree =
         this._activeSnapshots.get(this._highestBlockNumber);
     let state;
@@ -349,7 +341,8 @@ export class StorageNode<K = Buffer, V = Buffer> implements
     if (!storageTrie) {
       throw new Error('No internalStorageTrie with storageRoot');
     }
-    const ret = storageTrie.get(key);
+    const convKey = hashAsBuffer(HashType.KECCAK256, toBufferBE(key, 20));
+    const ret = storageTrie.get(convKey);
     return storageTrie.rlpSerializeWitness(ret);
   }
 
