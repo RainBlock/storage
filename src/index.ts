@@ -18,7 +18,7 @@ export interface Storage<K = Buffer, V = Buffer> {
   getCode: (address: Buffer, codeOnly: boolean) => {
     code: Buffer|undefined, account: RlpWitness|undefined
   };
-  getStorage: (address: Buffer, key: Buffer) => RlpWitness;
+  getStorage: (address: Buffer, key: Buffer) => RlpWitness | null;
   putGenesis: (genesisJSON?: string, genesisBIN?: string) => void;
   update: (block: RlpList, putOps: UpdateOps) => void;
   prove: (root: Buffer, key: Buffer, witness: RlpWitness) => boolean;
@@ -92,19 +92,18 @@ export class StorageNode<K = Buffer, V = Buffer> implements
       storage: GethStateDumpAccount['storage'], root: string, codeHash: string,
       code: string) {
     const storageEntries = Object.entries(storage);
+    const internalTrie = new MerklePatriciaTree({putCanDelete: false});
     if (storageEntries.length > 0) {
-      const internalTrie = new MerklePatriciaTree({putCanDelete: false});
       for (const [key, value] of storageEntries) {
         const k = hashAsBuffer(HashType.KECCAK256, Buffer.from(key, 'hex'));
         const v = Buffer.from(value, 'hex');
         internalTrie.put(k, v);
       }
-      this._InternalStorage.set(BigInt(`0x${root}`), internalTrie);
-
-      const codeBuffer = Buffer.from(code, 'hex');
-      const codeHashBuffer = Buffer.from(codeHash, 'hex');
-      this._CodeStorage.set(toBigIntBE(codeHashBuffer), codeBuffer);
     }
+    this._InternalStorage.set(BigInt(`0x${root}`), internalTrie);
+    const codeBuffer = Buffer.from(code, 'hex');
+    const codeHashBuffer = Buffer.from(codeHash, 'hex');
+    this._CodeStorage.set(toBigIntBE(codeHashBuffer), codeBuffer);
   }
 
   private _updateStorageTrie(
@@ -178,10 +177,13 @@ export class StorageNode<K = Buffer, V = Buffer> implements
   }
 
   private persist(block: RlpList, putOps: UpdateOps) {
-    this._logFile.write(RlpEncode(block).toString('hex') + '\n');
+    this._logFile.write(RlpEncode(block));
+    this._logFile.write('\n#');
     for (const put of putOps.ops) {
+      this._logFile.write('\n');
       this._logFile.write(put);
     }
+    this._logFile.write('\n#');
   }
 
   private partitionKeys(putOps: UpdateOps): UpdateOps {
@@ -314,19 +316,19 @@ export class StorageNode<K = Buffer, V = Buffer> implements
     const stateList: MerklePatriciaTree[]|MerklePatriciaTree =
         this._activeSnapshots.get(this._highestBlockNumber);
     if (stateList instanceof Array) {
-      const s = stateList.pop();
-      return s!.rlpSerializeWitness(s!.get(address));
+      const s = stateList[0];
+      return s.rlpSerializeWitness(s.get(address));
     } else {
       return stateList.rlpSerializeWitness(stateList.get(address));
     }
   }
 
-  getStorage(address: Buffer, key: Buffer): RlpWitness {
+  getStorage(address: Buffer, key: Buffer): RlpWitness|null {
     const currentSnapshot: MerklePatriciaTree[]|MerklePatriciaTree =
         this._activeSnapshots.get(this._highestBlockNumber);
     let state;
     if (currentSnapshot instanceof Array) {
-      state = currentSnapshot.pop();
+      state = currentSnapshot[0];
       if (!state) {
         throw new Error(
             'getStorage: No states for block ' +
@@ -335,12 +337,16 @@ export class StorageNode<K = Buffer, V = Buffer> implements
     } else {
       state = currentSnapshot;
     }
-    const rlpaccount = state.get(address).value;
+    const rlpwitness = state.get(address);
+    const rlpaccount = rlpwitness.value;
+    if (!rlpaccount) {
+      return null;
+    }
     const account = rlpToEthereumAccount(RlpDecode(rlpaccount!) as RlpList);
     const storageRoot = account.storageRoot;
     const storageTrie = this._InternalStorage.get(storageRoot);
     if (!storageTrie) {
-      return {value: null, proof: []};
+      throw new Error('No internalStorageTrie with storageRoot');
     }
     const ret = storageTrie.get(key);
     return storageTrie.rlpSerializeWitness(ret);
@@ -352,7 +358,7 @@ export class StorageNode<K = Buffer, V = Buffer> implements
         this._activeSnapshots.get(this._highestBlockNumber);
     let state;
     if (currentSnapshot instanceof Array) {
-      state = currentSnapshot.pop();
+      state = currentSnapshot[0];
       if (!state) {
         throw new Error(
             'getCode: no states for block' +
@@ -365,7 +371,10 @@ export class StorageNode<K = Buffer, V = Buffer> implements
     const rlpaccount = witness.value;
     const rlpwitness = state.rlpSerializeWitness(witness);
     if (!rlpaccount) {
-      throw new Error('Cannot find account to read storage from');
+      if (codeOnly) {
+        return {code: undefined, account: undefined};
+      }
+      return {code: undefined, account: rlpwitness};
     }
     const account = rlpToEthereumAccount(RlpDecode(rlpaccount) as RlpList);
     const codeHash = account.codeHash;
