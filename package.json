@@ -10,7 +10,7 @@
     "lint": "gts check",
     "test:node": "mocha -r ts-node/register src/**/*.spec.ts --timeout 40000",
     "benchmark": "node -r ts-node/register src/index.bench.ts",
-    "typedoc": "typedoc --out docs $(pwd)/src --target es6 --mode file --tsconfig ./tsconfig.json --excludePrivate --excludeProtected --excludeNotExported --exclude '**/*+(spec|bench).ts'",
+    "typedoc": "typedoc --out docs $(pwd)/src --target esnext --mode file --tsconfig ./tsconfig.json --excludePrivate --excludeProtected --excludeNotExported --exclude '**/*+(spec|bench).ts'",
     "check": "gts check",
     "clean": "gts clean",
     "compile": "mkdir -p build/src; mkdir logs; tsc -p .",
