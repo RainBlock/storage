@@ -11,6 +11,7 @@ run_tests:
   stage: test
   script:
    - npm install
+   - npm install https://github.com/RainBlock/merkle-patricia-tree
    - npm run test
   tags:
     - docker
