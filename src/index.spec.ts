@@ -163,10 +163,17 @@ describe('Test client <-> storage functions', async () => {
     const storage = snode.getStorage(account, account);
     should.not.exist(storage!.value);
   });
+
+  it('GetBlockHash: non existing block', async () => {
+    const blockInValid = snode.getBlockHash(BigInt(1));
+    should.exist(blockInValid);
+    blockInValid.length.should.equal(0);
+  });
+
+  it('GetRecentBlocks and GetBlockHash', async () => {
+    const recentBlocks = snode.getRecentBlocks();
+    assertEquals(BigInt(recentBlocks.length), BigInt(1));
+    const blocks = snode.getBlockHash(BigInt(0));
+    blocks.should.deep.equal(recentBlocks);
+  });
 });
-
-describe(
-    'Test verifier <-> storage functions',
-    async () => {
-
-    });

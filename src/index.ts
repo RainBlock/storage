@@ -305,11 +305,12 @@ export class StorageNode<K = Buffer, V = Buffer> implements
     return retVal;
   }
 
-  getBlockHash(blockNum: number): Buffer[] {
-    if (blockNum === -1) {
+  getBlockHash(blockNum: bigint): Buffer[] {
+    if (blockNum === BigInt(-1)) {
       return this.getRecentBlocks();
     }
-    return this._blockNumberToHash.get(blockNum);
+    const retVal = this._blockNumberToHash.get(blockNum);
+    return (retVal) ? retVal : [];
   }
 
   get(address: Buffer): RlpWitness {
