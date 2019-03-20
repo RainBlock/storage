@@ -44,7 +44,7 @@
     "@rainblock/merkle-patricia-tree": "git+https://github.com/RainBlock/merkle-patricia-tree.git",
     "@types/stream-chain": "^2.0.0",
     "@types/stream-json": "^1.0.0",
-    "bigint-hash": "git+https://github.com/SoujanyaPonnapalli/bigint-hash.git",
+    "bigint-hash": "^0.2.2",
     "caporal": "^0.10.0",
     "grpc": "^1.19.0",
     "level-mem": "^3.0.1",
