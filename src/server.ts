@@ -1,12 +1,16 @@
 import {toBigIntBE} from 'bigint-buffer';
 import * as grpc from 'grpc';
 import {sendUnaryData, ServerUnaryCall} from 'grpc';
+import {RlpDecode, RlpList} from 'rlp-stream/build/src/rlp-stream';
 
 import {StorageNodeService} from '../build/proto/clientStorage_grpc_pb';
 import {AccountReply, AccountRequest, BlockHashReply, BlockHashRequest, CodeReply, CodeRequest, MerklePatriciaTreeNode, RPCWitness, StorageReply, StorageRequest} from '../build/proto/clientStorage_pb';
 import {VerifierStorageService} from '../build/proto/verifierStorage_grpc_pb';
+import {CreationOp, DeletionOp, ExecutionOp, StorageDeletion, StorageInsertion, UpdateMsg, ValueChangeOp} from '../build/proto/verifierStorage_pb';
 
 import {StorageNode} from './index';
+import * as utils from './utils';
+
 
 let storage: StorageNode;
 
@@ -17,7 +21,7 @@ const getCodeInfo =
       console.log('Received getCodeInfo Call');
 
       // unpack request
-      const address = Buffer.from(call.request.getAddress() as Uint8Array);
+      const address = Buffer.from(call.request.getAddress_asU8());
       const codeOnly = call.request.getCodeOnly();
 
       // storage call
@@ -71,7 +75,7 @@ const getAccount =
       console.log('Received getAccount call');
 
       // unpack request
-      const address = Buffer.from(call.request.getAddress() as Uint8Array);
+      const address = Buffer.from(call.request.getAddress_asU8());
 
       // storage call
       let ret;
@@ -109,8 +113,8 @@ const getStorage =
       console.log('Received getStorage call');
 
       // unpack request
-      const address = Buffer.from(call.request.getAddress() as Uint8Array);
-      const key = Buffer.from(call.request.getKey() as Uint8Array);
+      const address = Buffer.from(call.request.getAddress_asU8());
+      const key = Buffer.from(call.request.getKey_asU8());
 
       // storage call
       let ret;
@@ -169,11 +173,101 @@ const getBlockHash =
       callback(null, reply);
     };
 
+// TODO: Use the merkleNodes
+const update = (call: ServerUnaryCall<UpdateMsg>) => {
+  // Log request
+  console.log('Received Update call');
+
+  // unpack request;
+  const block = call.request.getRlpBlock() as Buffer;
+  const rlpBlock = RlpDecode(block) as RlpList;
+  const merkleNodes = call.request.getMerkleTreeNodes() as Buffer;
+  const opList = call.request.getOperationsList();
+  const update: utils.UpdateOps = {ops: []};
+  for (const op of opList) {
+    if (op instanceof CreationOp) {
+      const address = op.getAccount_asU8() as Buffer;
+      const balance = toBigIntBE(op.getValue_asU8() as Buffer);
+      const code = op.getCode_asU8() as Buffer;
+      const accountStorage = new Map<bigint, bigint>();
+      const storageList = op.getStorageList();
+      for (const sop of storageList) {
+        const key = toBigIntBE(sop.getKey_asU8() as Buffer);
+        const val = toBigIntBE(sop.getValue_asU8() as Buffer);
+        accountStorage.set(key, val);
+      }
+      const creationop: utils.CreationOp = {
+        type: 'CreationOp',
+        account: address,
+        value: balance,
+        code,
+        storage: accountStorage,
+      };
+      update.ops.push(creationop);
+
+    } else if (op instanceof ValueChangeOp) {
+      const address = op.getAccount_asU8() as Buffer;
+      const balance = toBigIntBE(op.getValue_asU8() as Buffer);
+      const nonceChange = op.getChanges();
+      const valuechangeop: utils.ValueChangeOp = {
+        type: 'ValueChangeOp',
+        account: address,
+        value: balance,
+        changes: nonceChange
+      };
+      update.ops.push(valuechangeop);
+
+    } else if (op instanceof ExecutionOp) {
+      const address = op.getAccount_asU8() as Buffer;
+      const balance = toBigIntBE(op.getValue_asU8() as Buffer);
+      const accountStorage = new Array();
+      const storageUpdateList = op.getStorageList();
+      for (const sop of storageUpdateList) {
+        if (sop instanceof StorageInsertion) {
+          const key = toBigIntBE(sop.getKey_asU8() as Buffer);
+          const val = toBigIntBE(sop.getValue_asU8() as Buffer);
+          const sopupdate:
+              utils.StorageInsertion = {type: 'StorageInsertion', key, val};
+          accountStorage.push(sopupdate);
+
+        } else if (sop instanceof StorageDeletion) {
+          const key = toBigIntBE(sop.getKey_asU8() as Buffer);
+          const sopdelete:
+              utils.StorageDeletion = {type: 'StorageDeletion', key};
+          accountStorage.push(sopdelete);
+        }
+      }
+      const executionop: utils.ExecutionOp = {
+        type: 'ExecutionOp',
+        account: address,
+        value: balance,
+        storageUpdates: accountStorage
+      };
+      update.ops.push(executionop);
+
+    } else if (op instanceof DeletionOp) {
+      const address = Buffer.from(op.getAccount_asU8());
+      const deleteop: utils.DeletionOp = {
+        type: 'DeletionOp',
+        account: address,
+      };
+      update.ops.push(deleteop);
+    }
+  }
+
+  // storage call;
+  try {
+    storage.update(rlpBlock, update);
+  } catch (e) {
+    console.log('ERROR: update\n', e);
+  }
+};
+
 const runServer = (shard: number, port: number) => {
   const server = new grpc.Server();
   server.addService(
       StorageNodeService, {getCodeInfo, getAccount, getStorage, getBlockHash});
-  server.addService(VerifierStorageService, {});
+  server.addService(VerifierStorageService, {update});
   server.bind(
       '0.0.0.0:' + port.toString(), grpc.ServerCredentials.createInsecure());
   server.start();
