@@ -1,4 +1,6 @@
+import {toBigIntBE} from 'bigint-buffer';
 import { StorageNodeService } from "../proto/client-storage_grpc_pb";
+import { StorageNode} from "./index";
 import {
   CodeRequest,
   CodeReply,
@@ -14,8 +16,7 @@ import {
 import { ServerUnaryCall, sendUnaryData } from "grpc";
 import * as grpc from "grpc";
 
-const snode = require('../build/src/index');
-const storageNode = new snode.StorageNode(-1, "../../src/test_data/genesis.json", "../../src/test_data/genesis.bin");
+const storageNode = new StorageNode(-1, "../../src/test_data/genesis.json", "../../src/test_data/genesis.bin");
 
 const GetCodeInfo = (
  call: ServerUnaryCall<CodeRequest>,
@@ -32,18 +33,30 @@ const GetCodeInfo = (
     return e;
   }
   console.log("finished getCode call in server");
-  var existence = (resp.account.value === null ? false : true);
 
-  let idx;
-  let mptnodes = new Array();
-  for (idx = 0; idx< resp.account.proof.length; idx++) {
-    mptnodes[idx] = new MerklePatriciaTreeNode();
-    mptnodes[idx].setEncoding(resp.account.proof[idx]);
+  // If code is undefined, it means that the account is non-existent
+  var existence = (resp.code === undefined ? false : true);
+
+  let rpcwitness = new RPCWitness();
+
+  // if codeOnly is true, then account will always be undefined
+  if(!call.request.getCodeOnly()) {
+    let idx;
+    let mptnodes = new Array();
+    for (idx = 0; idx< resp.account!.proof.length; idx++) {
+      mptnodes[idx] = new MerklePatriciaTreeNode();
+      mptnodes[idx].setEncoding(resp.account!.proof[idx]);
+    }
+    const val = resp.account!.value === null ? "" : resp.account!.value;
+    rpcwitness.setValue(val);
+    rpcwitness.setProofList(mptnodes);
+
+  } else {
+    // let mptnodes = new Array();
+    // mptnodes[0].setEncoding(null);
+    rpcwitness.setValue("");
+    rpcwitness.setProofList([]);
   }
-  
-  const rpcwitness = new RPCWitness();
-  rpcwitness.setValue(resp.account.value);
-  rpcwitness.setProofList(mptnodes);
 
   const accountreply = new AccountReply();
   accountreply.setExists(existence);
@@ -51,7 +64,9 @@ const GetCodeInfo = (
 
   const codereply = new CodeReply();
   codereply.setAccountInfo(accountreply);
-  codereply.setCode(resp.code);
+
+  const code = resp.code === undefined? "":resp.code;
+  codereply.setCode(code);
   
   console.log("CodeReply is: ", codereply);
   callback(null, codereply);
@@ -65,24 +80,26 @@ const GetAccount = (
   console.log("Request is", call);
   let resp;
   try {
-    resp = storageNode.get(call.request.getAddress());
+    const address = Buffer.from(call.request.getAddress().toString(),'hex');
+    resp = storageNode.get(address);
   }
   catch (e) {
     console.log("Error in getAccount", e);
     return e;
   }
   console.log("finished getAccount call in server");
-  var existence = (resp.account.value === null ? false : true);
+  var existence = (resp.value === null ? false : true);
 
   let idx;
   let mptnodes = new Array();
-  for (idx = 0; idx< resp.account.proof.length; idx++) {
+  for (idx = 0; idx< resp.proof.length; idx++) {
     mptnodes[idx] = new MerklePatriciaTreeNode();
-    mptnodes[idx].setEncoding(resp.account.proof[idx]);
+    mptnodes[idx].setEncoding(resp.proof[idx]);
   }
   
   const rpcwitness = new RPCWitness();
-  rpcwitness.setValue(resp.account.value);
+  const val = resp.value === null ? "" : resp.value;
+  rpcwitness.setValue(val);
   rpcwitness.setProofList(mptnodes);
 
   const accountreply = new AccountReply();
@@ -101,29 +118,47 @@ const GetStorage = (
   console.log("Request is", call);
   let resp;
   try {
-    resp = storageNode.getStorage(call.request.getAddress(), call.request.getKey());
+    const address = Buffer.from(call.request.getAddress().toString(),'hex');
+    let key;
+    // if(call.request.getKey() instanceof String) {
+      key = BigInt(call.request.getKey());
+      console.log("String getStorageKey = ", call.request.getKey());
+    // } else {
+    //   key = toBigIntBE(call.request.getKey());
+    //   console.log("Array getStorageKey = ", call.request.getKey());
+    // }
+
+    resp = storageNode.getStorage(address, key);
   }
   catch (e) {
     console.log("Error in getstorage", e);
     return e;
   }
   console.log("finished getStorage call in server");
-  var existence = (resp.account.value === null ? false : true);
+  var existence = (resp === null ? false : true);
 
-  let idx;
-  let mptnodes = new Array();
-  for (idx = 0; idx< resp.account.proof.length; idx++) {
-    mptnodes[idx] = new MerklePatriciaTreeNode();
-    mptnodes[idx].setEncoding(resp.account.proof[idx]);
+  let rpcwitness = new RPCWitness();
+  let storagereply = new StorageReply();
+
+  // ASH: if resp is not null, value will also most definitely not be null
+  if (resp) {
+    let idx;
+    let mptnodes = new Array();
+    for (idx = 0; idx< resp.proof.length; idx++) {
+      mptnodes[idx] = new MerklePatriciaTreeNode();
+      mptnodes[idx].setEncoding(resp.proof[idx]);
+    }
+
+    rpcwitness.setValue(resp.value!);
+    rpcwitness.setProofList(mptnodes);
+
+    storagereply.setWitness(rpcwitness);
+  } else {
+    rpcwitness.setValue("");
+    rpcwitness.setProofList([]);
+    storagereply.setWitness(rpcwitness);
   }
 
-  const rpcwitness = new RPCWitness();
-  rpcwitness.setValue(resp.account.value);
-  rpcwitness.setProofList(mptnodes);
-
-  const storagereply = new StorageReply();
-  storagereply.setWitness(rpcwitness);
-  
   console.log("StorageReply is: ", storagereply);
   callback(null, storagereply);
 };
@@ -136,7 +171,7 @@ const GetBlockHash = (
   console.log("Request is", call);
   let resp;
   try {
-    resp = storageNode.getBlockHash(call.request.getNumber());
+    resp = storageNode.getBlockHash(BigInt(call.request.getNumber()));
   }
   catch (e) {
     console.log("Error in getblockhash", e);
