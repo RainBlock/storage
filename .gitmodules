@@ -1,0 +1,3 @@
+[submodule "rainblock-protocol"]
+	path = rainblock-protocol
+	url = https://github.com/RainBlock/rainblock-protocol

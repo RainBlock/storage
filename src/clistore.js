@@ -3,7 +3,7 @@ const protoLoader = require('@grpc/proto-loader');
 const snode = require('../build/src/index');
 const path = require('path');
 
-const protoFileName = __dirname + '/../proto/client-storage.proto';
+const protoFileName = __dirname + '/../rainblock-protocol/src/clientStorage.proto';
 const protoLoaderOptions = {
   keepCase: true,
   longs: String,
@@ -130,7 +130,7 @@ function GetBlockHash(call) {
   return blockhashreply;
 }
 
-server.addService(proto.storageapi.StorageNode.service, {
+server.addService(proto.rainblock.StorageNode.service, {
   getBlockHash: GetBlockHash,
   getStorage: GetStorage,
   getAccount: GetAccount,
