@@ -41,11 +41,9 @@
   ],
   "license": "Apache-2.0",
   "dependencies": {
+    "@grpc/proto-loader": "^0.4.0",
     "@rainblock/ethereum-block": "^0.2.0",
-    "@rainblock/merkle-patricia-tree": "git+https://github.com/RainBlock/merkle-patricia-tree.git",
-    "@types/google-protobuf": "^3.2.7",
-    "@types/stream-chain": "^2.0.0",
-    "@types/stream-json": "^1.0.0",
+    "@rainblock/merkle-patricia-tree": "^4.2.0",
     "bigint-hash": "^0.2.2",
     "caporal": "^0.10.0",
     "google-protobuf": "^3.7.0",
@@ -57,6 +55,7 @@
     "node-ethash": "git+https://github.com/SoujanyaPonnapalli/node-ethash.git",
     "protobufjs": "^6.8.8",
     "stream-chain": "^2.1.0",
+    "@types/google-protobuf": "^3.2.7",
     "stream-json": "^1.2.0",
     "wait-for-stuff": "^1.4.0"
   },
@@ -64,6 +63,8 @@
     "Michael Wei (https://gitlab.com/no2chem)"
   ],
   "devDependencies": {
+    "@types/stream-chain": "^2.0.0",
+    "@types/stream-json": "^1.0.0",
     "@types/chai": "^4.1.4",
     "@types/mocha": "^5.2.5",
     "@types/node": "^11.11.4",
