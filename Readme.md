@@ -4,26 +4,26 @@ rainblock-storage implements the storage layer for Rainblock.
 To run the tests or to boot up a storage server, install and compile the rainblock-storage and either execute the server or run the tests.
 The instructions for each of the steps follows.
 
-# Install
+## Install
 
 > git clone https://gitlab.com/SoujanyaPonnapalli/rainblock-storage \
 > cd rainblock-storage \
 > npm install
 
-# Compile
+## Compile
 
 > npm run compile
 
-# Test
+## Test
 
 > npm run test
 
-# Usage
+## Server Execution
 
 Run to get the server usage instructions
 
 > node -r ts-node/register src/server.ts
 
-# Server Execution
+To run a fullNode on port 50051
 
-> node -r ts-node/register src/server.ts shard port
+> node -r ts-node/register src/server.ts -1 50051
