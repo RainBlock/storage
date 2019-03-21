@@ -40,6 +40,6 @@ A .gitlab-ci.yml is present in the folder to test the storage node build and imp
 
 For manual testing; Use node:11.11.0 or node > 11; fetch the repo and run the following script in the repo:
 
-> npm install
-> npm run prepare
+> npm install \
+> npm run prepare \
 > npm run test
