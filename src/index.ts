@@ -119,7 +119,8 @@ export class StorageNode<K = Buffer, V = Buffer> implements
       throw new Error('Invalid: putGenesis when blockchain not empty');
     }
     const putOps = getStateFromGethJSON(
-        ((!genesisJSON) ? __dirname + '/test_data/genesis.json' : genesisJSON));
+        ((!genesisJSON) ? __dirname + '/test_data/genesis.json' :
+                          __dirname + '/' + genesisJSON));
 
     const trie = new MerklePatriciaTree({
       keyConverter: k => hashAsBuffer(HashType.KECCAK256, k),
@@ -139,7 +140,8 @@ export class StorageNode<K = Buffer, V = Buffer> implements
     }
 
     const data = fs.readFileSync(
-        ((!genesisBIN) ? __dirname + '/test_data/genesis.bin' : genesisBIN));
+        ((!genesisBIN) ? __dirname + '/test_data/genesis.bin' :
+                         __dirname + '/' + genesisBIN));
     const rlpGenesis = RlpDecode(data) as RlpList;
     const genesis = decodeBlock(rlpGenesis);
 
@@ -378,7 +380,6 @@ export class StorageNode<K = Buffer, V = Buffer> implements
     }
     return {code, account: rlpwitness};
   }
-
 
   prove(root: Buffer, key: Buffer, witness: RlpWitness): boolean {
     verifyWitness(root, key, witness);
