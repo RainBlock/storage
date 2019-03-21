@@ -6,8 +6,8 @@ The instructions for each of the steps follows.
 
 # Install
 
-> git clone https://gitlab.com/SoujanyaPonnapalli/rainblock-storage
-> cd rainblock-storage
+> git clone https://gitlab.com/SoujanyaPonnapalli/rainblock-storage \
+> cd rainblock-storage \
 > npm install
 
 # Compile
