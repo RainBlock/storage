@@ -1,4 +1,4 @@
-import * as protoLoader from '@grpc/proto-loader';
+/*import * as protoLoader from '@grpc/proto-loader';
 import * as snode from './index';
 const grpc = require('grpc');
 
@@ -42,4 +42,4 @@ server.addService(proto.storageNode.verifierToStorage.service, {
 // Start the server
 server.bind('0.0.0.0:50050', grpc.ServerCredentials.createInsecure());
 server.start();
-console.log('grpc server running on port:', '0.0.0.0:50050');
+console.log('grpc server running on port:', '0.0.0.0:50050');*/
