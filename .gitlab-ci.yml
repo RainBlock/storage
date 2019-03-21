@@ -11,7 +11,7 @@ run_tests:
   stage: test
   script:
    - npm install
-   - npm run compile
+   - npm run prepare
    - npm run test
   tags:
     - docker
