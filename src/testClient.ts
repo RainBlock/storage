@@ -265,9 +265,9 @@ const testGetBlockHash = (client: StorageNodeService.StorageNodeClient) => {
   });
 };
 
-const runTestClient = (port: string) => {
+const runTestClient = (hostIP: string, port: string) => {
   const client = new StorageNodeService.StorageNodeClient(
-      'localhost:' + port, grpc.credentials.createInsecure());
+      hostIP + ':' + port, grpc.credentials.createInsecure());
 
   // Test with RPC calls
   testGetCodeInfo(client);
@@ -277,18 +277,20 @@ const runTestClient = (port: string) => {
 };
 
 const printUsage = () => {
-  console.log('USAGE: node -r ts-node/register src/testClient.ts port');
+  console.log('USAGE: node -r ts-node/register src/testClient.ts hostIP port');
   process.exit(-1);
 };
 
 const callClient = () => {
-  if (process.argv.length !== 3) {
+  if (process.argv.length !== 4) {
     printUsage();
   }
-  const port = process.argv[2];
-  console.log('\nStarting client to connect server on port:', port);
+  const hostIP = process.argv[2];
+  const port = process.argv[3];
+  console.log(
+      '\nStarting client to connect to server', hostIP, 'on port', port);
   console.log('Debug Info in logs/testClient.log\n');
-  runTestClient(port);
+  runTestClient(hostIP, port);
 };
 
 callClient();
