@@ -3,7 +3,6 @@ import {BatchPut, MerklePatriciaTree, RlpWitness, verifyWitness, Witness} from '
 import {toBigIntBE, toBufferBE} from 'bigint-buffer';
 import {hashAsBigInt, hashAsBuffer, HashType} from 'bigint-hash';
 import * as fs from 'fs-extra';
-import {utils} from 'mocha';
 import {RlpDecode, RlpEncode, RlpList} from 'rlp-stream';
 
 import {computeBlockHash, EthereumAccount, ethereumAccountToRlp, gethAccountToEthAccount, GethStateDumpAccount, getStateFromGethJSON, rlpToEthereumAccount, UpdateOps} from './utils';
