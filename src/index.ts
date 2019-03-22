@@ -3,6 +3,7 @@ import {BatchPut, MerklePatriciaTree, RlpWitness, verifyWitness, Witness} from '
 import {toBigIntBE, toBufferBE} from 'bigint-buffer';
 import {hashAsBigInt, hashAsBuffer, HashType} from 'bigint-hash';
 import * as fs from 'fs-extra';
+import {utils} from 'mocha';
 import {RlpDecode, RlpEncode, RlpList} from 'rlp-stream';
 
 import {computeBlockHash, EthereumAccount, ethereumAccountToRlp, gethAccountToEthAccount, GethStateDumpAccount, getStateFromGethJSON, rlpToEthereumAccount, UpdateOps} from './utils';
@@ -72,10 +73,10 @@ export class StorageNode<K = Buffer, V = Buffer> implements
     const _cacheDB = new level();
     const _ethash = new nodeEthash(_cacheDB);
     const ethBlock = new ethjsBlock(block);
-    const blockNumber = ethBlock.header.number.toString('hex') + '\n#';
+    const blockNumber = ethBlock.header.number.toString('hex') + '\n#\n';
     _ethash.verifyPOW(ethBlock, (result: boolean) => {
       this._logFile.write(
-          result ? '\nValid ' + blockNumber : '\nInvalid ' + blockNumber);
+          result ? 'Valid ' + blockNumber : 'Invalid ' + blockNumber);
     });
   }
 
@@ -177,15 +178,47 @@ export class StorageNode<K = Buffer, V = Buffer> implements
     }
   }
 
-  // TODO: Fix the UpdateOps prints
   private persist(block: RlpList, putOps: UpdateOps) {
     this._logFile.write(RlpEncode(block));
-    this._logFile.write('\n#');
+    this._logFile.write('\n#\n');
     for (const put of putOps.ops) {
-      this._logFile.write('\n');
-      this._logFile.write(put.toString());
+      this._logFile.write(put.type + ': ');
+      if (put.type === 'CreationOp') {
+        let op = '';
+        op += put.account.toString('hex') + ' ';
+        op += put.value.toString(16) + ' ';
+        for (const [key, value] of put.storage.entries()) {
+          op += '[' + key.toString(16) + ', ' + value.toString(16) + '] ';
+        }
+        this._logFile.write(op);
+
+      } else if (put.type === 'DeletionOp') {
+        const op = put.account.toString();
+        this._logFile.write(op);
+
+      } else if (put.type === 'ExecutionOp') {
+        let op = '';
+        op += put.account.toString('hex') + ' ';
+        op += put.value.toString(16) + ' ';
+        for (const sop of put.storageUpdates) {
+          if (sop.type === 'StorageInsertion') {
+            op +=
+                '[' + sop.key.toString(16) + ', ' + sop.val.toString(16) + '] ';
+          } else if (sop.type === 'StorageDeletion') {
+            op += '[' + sop.key.toString(16) + '] ';
+          }
+        }
+        this._logFile.write(op);
+
+      } else if (put.type === 'ValueChangeOp') {
+        let op = '';
+        op += put.account.toString('hex') + ' ';
+        op += put.value.toString(16) + ' ';
+        op += put.changes.toString(16);
+        this._logFile.write(op);
+      }
+      this._logFile.write('\n#\n');
     }
-    this._logFile.write('\n#');
   }
 
   private belongsInShard(account: Buffer): boolean {
