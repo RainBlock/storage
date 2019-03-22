@@ -1,8 +1,7 @@
 import {toBigIntBE, toBufferBE} from 'bigint-buffer';
 import {hashAsBigInt, HashType} from 'bigint-hash';
 import * as fs from 'fs-extra';
-import {List} from 'lodash';
-import {RlpDecode, RlpEncode, RlpList} from 'rlp-stream/build/src/rlp-stream';
+import {RlpEncode, RlpList} from 'rlp-stream/build/src/rlp-stream';
 import {chain} from 'stream-chain';
 import {parser} from 'stream-json';
 import {pick} from 'stream-json/filters/Pick';

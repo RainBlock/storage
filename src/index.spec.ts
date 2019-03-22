@@ -3,13 +3,12 @@ import 'mocha';
 import {toBigIntBE, toBufferBE} from 'bigint-buffer';
 import {hashAsBigInt, HashType} from 'bigint-hash';
 import * as chai from 'chai';
-import {read} from 'fs-extra';
 import * as path from 'path';
 import {RlpDecode, RlpDecoderTransform, RlpList} from 'rlp-stream';
 import {Readable} from 'stream';
 
 import {StorageNode} from './index';
-import {computeBlockHash, CreationOp, DeletionOp, EthereumAccount, ethereumAccountToRlp, ExecutionOp, rlpToEthereumAccount, StorageInsertion, UpdateOps, ValueChangeOp} from './utils';
+import {computeBlockHash, CreationOp, DeletionOp, ethereumAccountToRlp, ExecutionOp, rlpToEthereumAccount, StorageInsertion, UpdateOps, ValueChangeOp} from './utils';
 
 const asyncChunks = require('async-chunks');
 const fs = process.browser ? undefined : require('fs-extra');

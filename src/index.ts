@@ -22,7 +22,7 @@ export interface Storage<K = Buffer, V = Buffer> {
   putGenesis: (genesisJSON?: string, genesisBIN?: string) => void;
   update: (block: RlpList, putOps: UpdateOps) => void;
   prove: (root: Buffer, key: Buffer, witness: RlpWitness) => boolean;
-  getRecentBlocks: () => Buffer[];
+  getRecentBlocks: () => Array<bigint>;
 }
 
 export class StorageNode<K = Buffer, V = Buffer> implements
@@ -72,10 +72,10 @@ export class StorageNode<K = Buffer, V = Buffer> implements
     const _cacheDB = new level();
     const _ethash = new nodeEthash(_cacheDB);
     const ethBlock = new ethjsBlock(block);
-    const blockNumber = ethBlock.header.number.toString('hex') + '\n#';
+    const blockNumber = ethBlock.header.number.toString('hex') + '\n#\n';
     _ethash.verifyPOW(ethBlock, (result: boolean) => {
       this._logFile.write(
-          result ? '\nValid ' + blockNumber : '\nInvalid ' + blockNumber);
+          result ? 'Valid ' + blockNumber : 'Invalid ' + blockNumber);
     });
   }
 
@@ -119,7 +119,8 @@ export class StorageNode<K = Buffer, V = Buffer> implements
       throw new Error('Invalid: putGenesis when blockchain not empty');
     }
     const putOps = getStateFromGethJSON(
-        ((!genesisJSON) ? __dirname + '/test_data/genesis.json' : genesisJSON));
+        ((!genesisJSON) ? __dirname + '/test_data/genesis.json' :
+                          __dirname + '/' + genesisJSON));
 
     const trie = new MerklePatriciaTree({
       keyConverter: k => hashAsBuffer(HashType.KECCAK256, k),
@@ -139,7 +140,8 @@ export class StorageNode<K = Buffer, V = Buffer> implements
     }
 
     const data = fs.readFileSync(
-        ((!genesisBIN) ? __dirname + '/test_data/genesis.bin' : genesisBIN));
+        ((!genesisBIN) ? __dirname + '/test_data/genesis.bin' :
+                         __dirname + '/' + genesisBIN));
     const rlpGenesis = RlpDecode(data) as RlpList;
     const genesis = decodeBlock(rlpGenesis);
 
@@ -175,15 +177,47 @@ export class StorageNode<K = Buffer, V = Buffer> implements
     }
   }
 
-  // TODO: Fix the UpdateOps prints
   private persist(block: RlpList, putOps: UpdateOps) {
     this._logFile.write(RlpEncode(block));
-    this._logFile.write('\n#');
+    this._logFile.write('\n#\n');
     for (const put of putOps.ops) {
-      this._logFile.write('\n');
-      this._logFile.write(put.toString());
+      this._logFile.write(put.type + ': ');
+      if (put.type === 'CreationOp') {
+        let op = '';
+        op += put.account.toString('hex') + ' ';
+        op += put.value.toString(16) + ' ';
+        for (const [key, value] of put.storage.entries()) {
+          op += '[' + key.toString(16) + ', ' + value.toString(16) + '] ';
+        }
+        this._logFile.write(op);
+
+      } else if (put.type === 'DeletionOp') {
+        const op = put.account.toString('hex');
+        this._logFile.write(op);
+
+      } else if (put.type === 'ExecutionOp') {
+        let op = '';
+        op += put.account.toString('hex') + ' ';
+        op += put.value.toString(16) + ' ';
+        for (const sop of put.storageUpdates) {
+          if (sop.type === 'StorageInsertion') {
+            op +=
+                '[' + sop.key.toString(16) + ', ' + sop.val.toString(16) + '] ';
+          } else if (sop.type === 'StorageDeletion') {
+            op += '[' + sop.key.toString(16) + '] ';
+          }
+        }
+        this._logFile.write(op);
+
+      } else if (put.type === 'ValueChangeOp') {
+        let op = '';
+        op += put.account.toString('hex') + ' ';
+        op += put.value.toString(16) + ' ';
+        op += put.changes.toString(16);
+        this._logFile.write(op);
+      }
+      this._logFile.write('\n#\n');
     }
-    this._logFile.write('\n#');
   }
 
   private belongsInShard(account: Buffer): boolean {
@@ -288,7 +322,7 @@ export class StorageNode<K = Buffer, V = Buffer> implements
         blockNum;
   }
 
-  getRecentBlocks(): Buffer[] {
+  getRecentBlocks(): Array<bigint> {
     const retVal = [];
     const blockHashIterator = this._blockchain.keys();
     for (const hash of blockHashIterator) {
@@ -297,7 +331,7 @@ export class StorageNode<K = Buffer, V = Buffer> implements
     return retVal;
   }
 
-  getBlockHash(blockNum: bigint): Buffer[] {
+  getBlockHash(blockNum: bigint): Array<bigint> {
     if (blockNum === BigInt(-1)) {
       return this.getRecentBlocks();
     }
@@ -378,7 +412,6 @@ export class StorageNode<K = Buffer, V = Buffer> implements
     }
     return {code, account: rlpwitness};
   }
-
 
   prove(root: Buffer, key: Buffer, witness: RlpWitness): boolean {
     verifyWitness(root, key, witness);
