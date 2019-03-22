@@ -26,9 +26,9 @@ If the protobufs are already present and to compile the storage node implementat
 
 ## Server Execution
 
-> node -r ts-node/register src/server.ts shard port
-
 Usage instructions, run the server with two args shard and port.
+
+> node -r ts-node/register src/server.ts shard port
 
 Shard can be either -1 or any number between 0 to 15.
 If shard is -1, the storage node is a fullNode and a sharded node storing the {shard} otherwise.
