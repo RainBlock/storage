@@ -169,7 +169,7 @@ const getBlockHash =
 
       // pack reply
       const reply = new BlockHashReply();
-      const retList = new Array<Uint8Array>()
+      const retList = new Array<Uint8Array>();
       for (const hash of ret) {
         retList.push(new Uint8Array(hash));
       }
