@@ -1,12 +1,10 @@
 import {hashAsBigInt, HashType} from 'bigint-hash';
-import {resolvePtr} from 'dns';
 import * as fs from 'fs-extra';
 import * as grpc from 'grpc';
-import {reporters} from 'mocha';
 import {RlpDecode, RlpList} from 'rlp-stream/build/src/rlp-stream';
 
 import * as StorageNodeService from '../build/proto/clientStorage_grpc_pb';
-import {AccountReply, AccountRequest, BlockHashReply, BlockHashRequest, CodeReply, CodeRequest, MerklePatriciaTreeNode, RPCWitness, StorageReply, StorageRequest} from '../build/proto/clientStorage_pb';
+import {AccountRequest, BlockHashRequest, CodeRequest, StorageRequest} from '../build/proto/clientStorage_pb';
 
 import {EthereumAccount, rlpToEthereumAccount} from './utils';
 

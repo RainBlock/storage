@@ -1,7 +1,6 @@
 import {toBigIntBE, toBufferBE} from 'bigint-buffer';
 import * as grpc from 'grpc';
 import {sendUnaryData, ServerUnaryCall} from 'grpc';
-import {relative} from 'path';
 import {RlpDecode, RlpList} from 'rlp-stream/build/src/rlp-stream';
 
 import {StorageNodeService} from '../build/proto/clientStorage_grpc_pb';
