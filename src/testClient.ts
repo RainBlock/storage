@@ -241,7 +241,7 @@ const testGetStorage = (client: StorageNodeService.StorageNodeClient) => {
 };
 
 const testGetBlockHash = (client: StorageNodeService.StorageNodeClient) => {
-  const blockInValid = 1;
+  const blockInValid = 10;
   const request = new BlockHashRequest();
   request.setNumber(blockInValid);
   client.getBlockHash(request, (err, response) => {

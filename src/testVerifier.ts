@@ -86,14 +86,17 @@ const runVerifier = (host: string, port: string) => {
   updateMsg.setRlpBlock(rlpBlockBuffer);
   updateMsg.setOperationsList(opList);
 
-  let barrier = true;
+  let barrier1 = true;
+  let barrier2 = true;
+  let barrier3 = true;
+  let barrier4 = true;
+  let barrier5 = true;
   verifier.update(updateMsg, (err, resp) => {
     console.log('Create Request finished');
-    barrier = false;
+    barrier1 = false;
   });
 
-  wait.for.predicate(() => barrier === false);
-  barrier = true;
+  wait.for.predicate(() => barrier1 === false);
 
   rlpBlockBuffer = RlpEncode(data[2]) as Buffer;
   updateMsg.setRlpBlock(rlpBlockBuffer);
@@ -105,11 +108,10 @@ const runVerifier = (host: string, port: string) => {
 
   verifier.update(updateMsg, (err, resp) => {
     console.log('Value Request finished');
-    barrier = false;
+    barrier2 = false;
   });
 
-  wait.for.predicate(() => barrier === false);
-  barrier = true;
+  wait.for.predicate(() => barrier2 === false);
 
   rlpBlockBuffer = RlpEncode(data[3]) as Buffer;
   updateMsg.setRlpBlock(rlpBlockBuffer);
@@ -121,11 +123,10 @@ const runVerifier = (host: string, port: string) => {
 
   verifier.update(updateMsg, (err, resp) => {
     console.log('Execute Request finished');
-    barrier = false;
+    barrier3 = false;
   });
 
-  wait.for.predicate(() => barrier === false);
-  barrier = true;
+  wait.for.predicate(() => barrier3 === false);
 
   rlpBlockBuffer = RlpEncode(data[4]) as Buffer;
   updateMsg.setRlpBlock(rlpBlockBuffer);
@@ -137,11 +138,10 @@ const runVerifier = (host: string, port: string) => {
 
   verifier.update(updateMsg, (err, resp) => {
     console.log('Delete Request finished');
-    barrier = false;
+    barrier4 = false;
   });
 
-  wait.for.predicate(() => barrier === false);
-  barrier = true;
+  wait.for.predicate(() => barrier4 === false);
 
   rlpBlockBuffer = RlpEncode(data[5]) as Buffer;
   updateMsg.setRlpBlock(rlpBlockBuffer);
@@ -153,7 +153,7 @@ const runVerifier = (host: string, port: string) => {
 
   verifier.update(updateMsg, (err, resp) => {
     console.log('Execute Request finished');
-    barrier = false;
+    barrier5 = false;
   });
 };
 
