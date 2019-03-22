@@ -73,7 +73,6 @@ const runVerifier = (host: string, port: string) => {
 
   const updateMsg = new UpdateMsg();
   const data: RlpList[] = getData();
-  console.log(data);
   // const rlpGenesis = RlpDecode(data) as RlpList;
   let rlpBlockBuffer = RlpEncode(data[1]) as Buffer;
 
@@ -152,7 +151,7 @@ const runVerifier = (host: string, port: string) => {
   updateMsg.setOperationsList(opList);
 
   verifier.update(updateMsg, (err, resp) => {
-    console.log('Execute Request finished');
+    console.log('Execute Request finished. It should fail in server');
     barrier5 = false;
   });
 };
@@ -185,7 +184,6 @@ const callVerifier = () => {
   if (process.argv.length !== 2) {
     printUsage();
   }
-  console.log(process.env);
   const snodes = process.env.SNODES;
   let host: string;
   let port: string;
