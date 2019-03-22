@@ -227,11 +227,7 @@ export class StorageNode<K = Buffer, V = Buffer> implements
     return false;
   }
 
-  /**
-   * TODO: Take in merkle_tree_nodes and verify the sharded state against
-   *       global root
-   */
-  update(rlpBlock: RlpList, putOps: UpdateOps) {
+  update(rlpBlock: RlpList, putOps: UpdateOps, merkleHashes?: Buffer[]) {
     this.gc();
     const block: EthereumBlock = decodeBlock(rlpBlock);
     this.verifyPOW(rlpBlock);
@@ -310,7 +306,16 @@ export class StorageNode<K = Buffer, V = Buffer> implements
     }
 
     const trie = parentState.batchCOW(updateOps, delOps);
-    const root = toBigIntBE(trie.root);
+    const root = trie.root;
+    if (merkleHashes) {
+      merkleHashes[this._shard] = root;
+      const globalRoot =
+          hashAsBigInt(HashType.KECCAK256, RlpEncode(merkleHashes));
+      if (globalRoot !== block.header.stateRoot) {
+        throw new Error(
+            'sharded stateRoots don\'t has to block\'s global stateRoot');
+      }
+    }
     const blockNum = block.header.blockNumber;
     const blockHash = computeBlockHash(rlpBlock);
     this._blockchain.set(blockHash, [block, trie]);
