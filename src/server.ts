@@ -41,7 +41,7 @@ const getCodeInfo =
       if (!account) {
         const reply = new CodeReply();
         if (code) {
-          reply.setCode(code as Uint8Array);
+          reply.setCode(new Uint8Array(code));
         }
         callback(null, reply);
       } else {
@@ -50,11 +50,11 @@ const getCodeInfo =
         const nodeList = new Array<MerklePatriciaTreeNode>();
         const witness = new RPCWitness();
         if (account.value) {
-          witness.setValue(account.value as Uint8Array);
+          witness.setValue(new Uint8Array(account.value));
         }
         for (let i = 0; i < account.proof.length; i++) {
           const treeNode = new MerklePatriciaTreeNode();
-          treeNode.setEncoding(account.proof[i] as Uint8Array);
+          treeNode.setEncoding(new Uint8Array(account.proof[i]));
           nodeList.push(treeNode);
         }
         witness.setProofList(nodeList);
@@ -62,7 +62,7 @@ const getCodeInfo =
         accountReply.setWitness(witness);
         reply.setAccountInfo(accountReply);
         if (code) {
-          reply.setCode(code as Uint8Array);
+          reply.setCode(new Uint8Array(code));
         }
         callback(null, reply);
       }
@@ -94,11 +94,11 @@ const getAccount =
       const nodeList = new Array<MerklePatriciaTreeNode>();
       const witness = new RPCWitness();
       if (ret.value) {
-        witness.setValue(ret.value as Uint8Array);
+        witness.setValue(new Uint8Array(ret.value));
       }
       for (let i = 0; i < ret.proof.length; i++) {
         const treeNode = new MerklePatriciaTreeNode();
-        treeNode.setEncoding(ret.proof[i] as Uint8Array);
+        treeNode.setEncoding(new Uint8Array(ret.proof[i]));
         nodeList.push(treeNode);
       }
       witness.setProofList(nodeList);
@@ -135,12 +135,12 @@ const getStorage =
       const reply = new StorageReply();
       const witness = new RPCWitness();
       if (ret.value) {
-        witness.setValue(ret.value as Uint8Array);
+        witness.setValue(new Uint8Array(ret.value));
       }
       const nodeList = new Array<MerklePatriciaTreeNode>();
       for (let i = 0; i < ret.proof.length; i++) {
         const treeNode = new MerklePatriciaTreeNode();
-        treeNode.setEncoding(ret.proof[i] as Uint8Array);
+        treeNode.setEncoding(new Uint8Array(ret.proof[i]));
         nodeList.push(treeNode);
       }
       witness.setProofList(nodeList);
@@ -169,7 +169,11 @@ const getBlockHash =
 
       // pack reply
       const reply = new BlockHashReply();
-      reply.setHashesList(ret as Uint8Array[]);
+      const retList = new Array<Uint8Array>()
+      for (const hash of ret) {
+        retList.push(new Uint8Array(hash));
+      }
+      reply.setHashesList(retList);
       callback(null, reply);
     };
 
@@ -179,21 +183,21 @@ const update = (call: ServerUnaryCall<UpdateMsg>) => {
   console.log('Received Update call');
 
   // unpack request;
-  const block = call.request.getRlpBlock() as Buffer;
+  const block = Buffer.from(call.request.getRlpBlock_asU8());
   const rlpBlock = RlpDecode(block) as RlpList;
-  const merkleNodes = call.request.getMerkleTreeNodes() as Buffer;
+  const merkleNodes = Buffer.from(call.request.getMerkleTreeNodes_asU8());
   const opList = call.request.getOperationsList();
   const update: utils.UpdateOps = {ops: []};
   for (const op of opList) {
     if (op instanceof CreationOp) {
-      const address = op.getAccount_asU8() as Buffer;
-      const balance = toBigIntBE(op.getValue_asU8() as Buffer);
-      const code = op.getCode_asU8() as Buffer;
+      const address = Buffer.from(op.getAccount_asU8());
+      const balance = toBigIntBE(Buffer.from(op.getValue_asU8()));
+      const code = Buffer.from(op.getCode_asU8());
       const accountStorage = new Map<bigint, bigint>();
       const storageList = op.getStorageList();
       for (const sop of storageList) {
-        const key = toBigIntBE(sop.getKey_asU8() as Buffer);
-        const val = toBigIntBE(sop.getValue_asU8() as Buffer);
+        const key = toBigIntBE(Buffer.from(sop.getKey_asU8()));
+        const val = toBigIntBE(Buffer.from(sop.getValue_asU8()));
         accountStorage.set(key, val);
       }
       const creationop: utils.CreationOp = {
@@ -206,8 +210,8 @@ const update = (call: ServerUnaryCall<UpdateMsg>) => {
       update.ops.push(creationop);
 
     } else if (op instanceof ValueChangeOp) {
-      const address = op.getAccount_asU8() as Buffer;
-      const balance = toBigIntBE(op.getValue_asU8() as Buffer);
+      const address = Buffer.from(op.getAccount_asU8());
+      const balance = toBigIntBE(Buffer.from(op.getValue_asU8()));
       const nonceChange = op.getChanges();
       const valuechangeop: utils.ValueChangeOp = {
         type: 'ValueChangeOp',
@@ -218,20 +222,20 @@ const update = (call: ServerUnaryCall<UpdateMsg>) => {
       update.ops.push(valuechangeop);
 
     } else if (op instanceof ExecutionOp) {
-      const address = op.getAccount_asU8() as Buffer;
-      const balance = toBigIntBE(op.getValue_asU8() as Buffer);
+      const address = Buffer.from(op.getAccount_asU8());
+      const balance = toBigIntBE(Buffer.from(op.getValue_asU8()));
       const accountStorage = new Array();
       const storageUpdateList = op.getStorageList();
       for (const sop of storageUpdateList) {
         if (sop instanceof StorageInsertion) {
-          const key = toBigIntBE(sop.getKey_asU8() as Buffer);
-          const val = toBigIntBE(sop.getValue_asU8() as Buffer);
+          const key = toBigIntBE(Buffer.from(sop.getKey_asU8()));
+          const val = toBigIntBE(Buffer.from(sop.getValue_asU8()));
           const sopupdate:
               utils.StorageInsertion = {type: 'StorageInsertion', key, val};
           accountStorage.push(sopupdate);
 
         } else if (sop instanceof StorageDeletion) {
-          const key = toBigIntBE(sop.getKey_asU8() as Buffer);
+          const key = toBigIntBE(Buffer.from(sop.getKey_asU8()));
           const sopdelete:
               utils.StorageDeletion = {type: 'StorageDeletion', key};
           accountStorage.push(sopdelete);
