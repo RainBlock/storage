@@ -21,9 +21,10 @@ const loadStream = async (filename: string) => {
   return decoder;
 };
 
-const runVerifier = (port: string) => {
+const runVerifier = (host: string, port: string) => {
+  const storageSocket = host + ':' + port;
   const verifier = new VerifierStorageService.VerifierStorageClient(
-      'localhost:' + port, grpc.credentials.createInsecure());
+      storageSocket, grpc.credentials.createInsecure());
 
   const createOp = new CreationOp();
   const address =
@@ -157,7 +158,7 @@ const runVerifier = (port: string) => {
 };
 
 const printUsage = () => {
-  console.log('USAGE: node -r ts-node/register src/testVerifier.ts port');
+  console.log('USAGE: node -r ts-node/register src/testVerifier.ts');
   process.exit(-1);
 };
 
@@ -181,12 +182,24 @@ const getEthereumBlocks = async () => {
 };
 
 const callVerifier = () => {
-  if (process.argv.length !== 3) {
+  if (process.argv.length !== 2) {
     printUsage();
   }
-  const port = process.argv[2];
-  console.log('Started verifier: ');
-  runVerifier(port);
+  console.log(process.env);
+  const snodes = process.env.SNODES;
+  let host: string;
+  let port: string;
+  if (snodes === undefined) {
+    console.log('Undefined storage node');
+    process.exit(-2);
+  } else {
+    const slist = snodes.split(',');
+    console.log(slist);
+    host = slist[0].split(':')[0];
+    port = slist[0].split(':')[1];
+    console.log('Starting verifier at', host, ':', port);
+    runVerifier(host, port);
+  }
 };
 
 callVerifier();

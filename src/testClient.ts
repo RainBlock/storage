@@ -265,9 +265,10 @@ const testGetBlockHash = (client: StorageNodeService.StorageNodeClient) => {
   });
 };
 
-const runTestClient = (port: string) => {
+const runTestClient = (host: string, port: string) => {
+  const storageSocket = host + ':' + port;
   const client = new StorageNodeService.StorageNodeClient(
-      'localhost:' + port, grpc.credentials.createInsecure());
+      storageSocket, grpc.credentials.createInsecure());
 
   // Test with RPC calls
   testGetCodeInfo(client);
@@ -277,18 +278,31 @@ const runTestClient = (port: string) => {
 };
 
 const printUsage = () => {
-  console.log('USAGE: node -r ts-node/register src/testClient.ts port');
+  console.log('USAGE: node -r ts-node/register src/testClient.ts');
   process.exit(-1);
 };
 
 const callClient = () => {
-  if (process.argv.length !== 3) {
+  if (process.argv.length !== 2) {
     printUsage();
   }
-  const port = process.argv[2];
-  console.log('\nStarting client to connect server on port:', port);
-  console.log('Debug Info in logs/testClient.log\n');
-  runTestClient(port);
+
+  const snodes = process.env.SNODES;
+  const enodes = process.env.ENODES;
+  let host: string;
+  let port: string;
+  if (snodes === undefined) {
+    console.log('Undefined storage node');
+    process.exit(-2);
+  } else {
+    const slist = snodes.split(',');
+    console.log(slist);
+    host = slist[0].split(':')[0];
+    port = slist[0].split(':')[1];
+    console.log('\nStarting client to connect server at:' + host + ':' + port);
+    console.log('Debug Info in logs/testClient.log\n');
+    runTestClient(host, port);
+  }
 };
 
 callClient();
