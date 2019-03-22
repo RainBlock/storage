@@ -193,7 +193,7 @@ export class StorageNode<K = Buffer, V = Buffer> implements
         this._logFile.write(op);
 
       } else if (put.type === 'DeletionOp') {
-        const op = put.account.toString();
+        const op = put.account.toString('hex');
         this._logFile.write(op);
 
       } else if (put.type === 'ExecutionOp') {
