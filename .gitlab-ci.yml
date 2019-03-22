@@ -13,5 +13,8 @@ run_tests:
    - npm install
    - npm run prepare
    - npm run test
+   - node -r ts-node/register src/server.ts -1 50051 &
+   - sleep 5
+   - node -r ts-node/register src/testClient.ts 50051
   tags:
     - docker
