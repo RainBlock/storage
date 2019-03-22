@@ -1,6 +1,8 @@
 import {hashAsBigInt, HashType} from 'bigint-hash';
+import {resolvePtr} from 'dns';
 import * as fs from 'fs-extra';
 import * as grpc from 'grpc';
+import {reporters} from 'mocha';
 import {RlpDecode, RlpList} from 'rlp-stream/build/src/rlp-stream';
 
 import * as StorageNodeService from '../build/proto/clientStorage_grpc_pb';
@@ -240,6 +242,31 @@ const testGetStorage = (client: StorageNodeService.StorageNodeClient) => {
   });
 };
 
+const testGetBlockHash = (client: StorageNodeService.StorageNodeClient) => {
+  const blockInValid = 1;
+  const request = new BlockHashRequest();
+  request.setNumber(blockInValid);
+  client.getBlockHash(request, (err, response) => {
+    const block = response.getHashesList();
+    if (block.length !== 0) {
+      throw new Error('getBlockHash: Has response for invalid blocknumber');
+    }
+    console.log(
+        'Test Success: getBlockHash has no response for invalid blocknumber');
+  });
+
+  const blockValid = 0;
+  request.setNumber(blockValid);
+  client.getBlockHash(request, (err, response) => {
+    const block = response.getHashesList();
+    if (block.length === 0) {
+      throw new Error('getBlockHash: Has response for invalid blocknumber');
+    }
+    console.log(
+        'Test Success: getBlockHash has valid response for valid blocknumber');
+  });
+};
+
 const runTestClient = (port: string) => {
   const client = new StorageNodeService.StorageNodeClient(
       'localhost:' + port, grpc.credentials.createInsecure());
@@ -248,6 +275,7 @@ const runTestClient = (port: string) => {
   testGetCodeInfo(client);
   testGetAccount(client);
   testGetStorage(client);
+  testGetBlockHash(client);
 };
 
 const printUsage = () => {

@@ -22,7 +22,7 @@ export interface Storage<K = Buffer, V = Buffer> {
   putGenesis: (genesisJSON?: string, genesisBIN?: string) => void;
   update: (block: RlpList, putOps: UpdateOps) => void;
   prove: (root: Buffer, key: Buffer, witness: RlpWitness) => boolean;
-  getRecentBlocks: () => Buffer[];
+  getRecentBlocks: () => Array<bigint>;
 }
 
 export class StorageNode<K = Buffer, V = Buffer> implements
@@ -290,7 +290,7 @@ export class StorageNode<K = Buffer, V = Buffer> implements
         blockNum;
   }
 
-  getRecentBlocks(): Buffer[] {
+  getRecentBlocks(): Array<bigint> {
     const retVal = [];
     const blockHashIterator = this._blockchain.keys();
     for (const hash of blockHashIterator) {
@@ -299,7 +299,7 @@ export class StorageNode<K = Buffer, V = Buffer> implements
     return retVal;
   }
 
-  getBlockHash(blockNum: bigint): Buffer[] {
+  getBlockHash(blockNum: bigint): Array<bigint> {
     if (blockNum === BigInt(-1)) {
       return this.getRecentBlocks();
     }
