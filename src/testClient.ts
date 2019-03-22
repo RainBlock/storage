@@ -51,9 +51,9 @@ const testGetCodeInfo = (client: StorageNodeService.StorageNodeClient) => {
 
     // Logging Information
     console.log(
-        'Test Sucess: getCodeInfo of existing account with codeOnly set to false');
+        'Test Success: getCodeInfo of existing account with codeOnly set to false');
     debugLog.write(
-        'Test Sucess: getCodeInfo of existing account with codeOnly set to false');
+        'Test Success: getCodeInfo of existing account with codeOnly set to false');
     debugLog.write('Received CodeInfo:\n');
     debugLog.write('Account:\n');
     debugLog.write(account.balance.toString() + '\n');
@@ -85,9 +85,9 @@ const testGetCodeInfo = (client: StorageNodeService.StorageNodeClient) => {
 
     // Logging information
     console.log(
-        'Test Sucess: getCodeInfo of existing account with codeOnly set to true');
+        'Test Success: getCodeInfo of existing account with codeOnly set to true');
     debugLog.write(
-        'Test Sucess: getCodeInfo of existing account with codeOnly set to true\n');
+        'Test Success: getCodeInfo of existing account with codeOnly set to true\n');
     debugLog.write('Received CodeInfo:\n');
     debugLog.write('CodeHash: ' + codeHash.toString() + '\n');
     debugLog.write('-------------------------------------------------\n');
@@ -114,9 +114,9 @@ const testGetCodeInfo = (client: StorageNodeService.StorageNodeClient) => {
 
     // Logging Information
     console.log(
-        'Test Sucess: getCodeInfo of non-existing account with codeOnly set to false');
+        'Test Success: getCodeInfo of non-existing account with codeOnly set to false');
     debugLog.write(
-        'Test Sucess: getCodeInfo of non-existing account with codeOnly set to false\n');
+        'Test Success: getCodeInfo of non-existing account with codeOnly set to false\n');
     const booleanString = (exists) ? 'true' : 'false';
     debugLog.write('Account exists: ' + booleanString + '\n');
     debugLog.write('-------------------------------------------------\n');
@@ -138,9 +138,9 @@ const testGetCodeInfo = (client: StorageNodeService.StorageNodeClient) => {
 
     // Logging Information
     console.log(
-        'Test Sucess: getCodeInfo of non-existing account with codeOnly set to true');
+        'Test Success: getCodeInfo of non-existing account with codeOnly set to true');
     debugLog.write(
-        'Test Sucess: getCodeInfo of non-existing account with codeOnly set to true\n');
+        'Test Success: getCodeInfo of non-existing account with codeOnly set to true\n');
     debugLog.write('Account is undefined\n');
     debugLog.write('-------------------------------------------------\n');
   });
@@ -175,8 +175,8 @@ const testGetAccount = (client: StorageNodeService.StorageNodeClient) => {
     assertEquals(account.storageRoot, storageRoot);
 
     // Logging Information
-    console.log('Test Sucess: getAccount of existing account');
-    debugLog.write('Test Sucess: getAccount of existing account\n');
+    console.log('Test Success: getAccount of existing account');
+    debugLog.write('Test Success: getAccount of existing account\n');
     debugLog.write('Account:\n');
     debugLog.write(account.balance.toString() + '\n');
     debugLog.write(account.nonce.toString() + '\n');
@@ -200,11 +200,43 @@ const testGetAccount = (client: StorageNodeService.StorageNodeClient) => {
     }
 
     // Logging Information
-    console.log('Test Sucess: getAccount of non-existing account');
-    debugLog.write('Test Sucess: getAccount of non-existing account\n');
+    console.log('Test Success: getAccount of non-existing account');
+    debugLog.write('Test Success: getAccount of non-existing account\n');
     debugLog.write(
         'Returns a undefined account with proof of non-existence \n');
     debugLog.write('-------------------------------------------------\n');
+  });
+};
+
+const testGetStorage = (client: StorageNodeService.StorageNodeClient) => {
+  // Test getStorage of non-existing account
+  const noAddress =
+      Buffer.from('000abcdefabcdefabcdef0001234567890abcdef', 'hex');
+  const request = new StorageRequest();
+  request.setAddress(noAddress);
+  request.setKey(noAddress);
+
+  client.getStorage(request, (err, response) => {
+    if (response) {
+      throw new Error('getStorage: response exists for a non-existing account');
+    }
+    console.log(
+        'Test Success: getStorage response to non-existing account is undefined');
+  });
+
+  const address =
+      Buffer.from('000d836201318ec6899a67540690382780743280', 'hex');
+  request.setAddress(address);
+  request.setKey(address);
+  client.getStorage(request, (err, response) => {
+    const account = response.getWitness();
+    const value = response.getWitness()!.getValue();
+    if (!account || value) {
+      throw new Error(
+          'getStorage: account should exist but value should not be present');
+    }
+    console.log(
+        'Test Success: getStorage of existing account but non-existing storage key');
   });
 };
 
@@ -215,6 +247,7 @@ const runTestClient = (port: string) => {
   // Test with RPC calls
   testGetCodeInfo(client);
   testGetAccount(client);
+  testGetStorage(client);
 };
 
 const printUsage = () => {
