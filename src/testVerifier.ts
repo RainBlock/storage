@@ -14,7 +14,6 @@ const wait = require('wait-for-stuff');
 const fs = require('fs-extra');
 const asyncChunks = require('async-chunks');
 
-
 const debugLog = fs.createWriteStream('./logs/testClient.log', {flags: 'a'});
 const assertEquals = (n0: bigint, n1: bigint) => {
   if (n0 !== n1) {
