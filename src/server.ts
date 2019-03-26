@@ -183,7 +183,6 @@ const update =
     (call: ServerUnaryCall<UpdateMsg>, callback: sendUnaryData<Empty>) => {
       // Log request
       console.log('Received Update call');
-      callback(null, new Empty());
 
       // unpack request;
       const block = Buffer.from(call.request.getRlpBlock_asU8());
@@ -240,15 +239,23 @@ const update =
           const balance = toBigIntBE(Buffer.from(op.getValue_asU8()));
           const accountStorage = new Array();
           const storageUpdateList = op.getStorageList();
-          for (const sop of storageUpdateList) {
-            if (sop instanceof StorageInsertion) {
+          for (const sopItem of storageUpdateList) {
+            if (sopItem.hasInserts()) {
+              const sop = sopItem.getInserts();
+              if (!sop) {
+                continue;
+              }
               const key = toBigIntBE(Buffer.from(sop.getKey_asU8()));
               const val = toBigIntBE(Buffer.from(sop.getValue_asU8()));
               const sopupdate:
                   utils.StorageInsertion = {type: 'StorageInsertion', key, val};
               accountStorage.push(sopupdate);
 
-            } else if (sop instanceof StorageDeletion) {
+            } else if (sopItem.hasDeletes()) {
+              const sop = sopItem.getInserts();
+              if (!sop) {
+                continue;
+              }
               const key = toBigIntBE(Buffer.from(sop.getKey_asU8()));
               const sopdelete:
                   utils.StorageDeletion = {type: 'StorageDeletion', key};
@@ -281,7 +288,10 @@ const update =
         storage.update(rlpBlock, update);
       } catch (e) {
         console.log('ERROR: update\n', e);
+        callback(e, new Empty());
+        return;
       }
+      callback(null, new Empty());
     };
 
 const runServer = (shard: number, port: number) => {
