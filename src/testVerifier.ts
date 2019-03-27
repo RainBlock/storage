@@ -60,33 +60,34 @@ const checkResponse =
       request.setAddress(address);
       client.getAccount(request, (err, response) => {
         if (err) {
-          if (testname === 'deleteTest') {
-            console.log('Test Success: ' + testname + '\n');
-            debugLog.write('Account correctly deleted:\n');
-          } else {
-            throw new Error('Error in getAccount rpc');
-          }
+          console.log('Error when client checked for account');
+          throw new Error('Error in getAccount rpc');
         } else {
           // unpack response
           const accountVal =
               Buffer.from(response.getWitness()!.getValue_asU8());
           const rlpAccount = RlpDecode(accountVal) as RlpList;
-          const account = rlpToEthereumAccount(rlpAccount);
+          if (testname === 'deleteTest' || testname === 'execFailTest') {
+            if (!accountVal.length) {
+              console.log('Test Success: Undefined account: ', testname);
+            } else {
+              console.log('FAIL: Should have empty account: ', testname);
+            }
+          } else {
+            const account = rlpToEthereumAccount(rlpAccount);
+            // check correctness
+            assertEquals(account.balance, balance);
 
-          // check correctness
-          // assertEquals(account.nonce, nonce);
-          assertEquals(account.balance, balance);
-          // assertEquals(account.codeHash, codeHash);
-          // assertEquals(account.storageRoot, storageRoot);
-
-          // Logging Information
-          console.log('Test Success: ' + testname + '\n');
-          debugLog.write('Account:\n');
-          debugLog.write(account.balance.toString() + '\n');
-          debugLog.write(account.nonce.toString() + '\n');
-          debugLog.write(account.codeHash.toString() + '\n');
-          debugLog.write(account.storageRoot.toString() + '\n');
-          debugLog.write('-------------------------------------------------\n');
+            // Logging Information
+            console.log('Test Success: ' + testname + '\n');
+            debugLog.write('Account:\n');
+            debugLog.write(account.balance.toString() + '\n');
+            debugLog.write(account.nonce.toString() + '\n');
+            debugLog.write(account.codeHash.toString() + '\n');
+            debugLog.write(account.storageRoot.toString() + '\n');
+            debugLog.write(
+                '-------------------------------------------------\n');
+          }
         }
       });
     };
@@ -121,12 +122,13 @@ const testCreateOp =
       updateMsg.setOperationsList(opList);
 
       // storage update
+      console.log('Executing Create Request');
       verifier.update(updateMsg, (err, resp) => {
         if (err) {
           throw new Error('Update failed: Create Request');
         }
+        console.log('Create Request Executed, verifying update using client');
         checkResponse(client, address, bigIntBalance, testname);
-        console.log('Test Success: Create Request');
         serialize = true;
       });
     };
@@ -154,12 +156,14 @@ const testValueOp =
       updateMsg.setOperationsList(opList);
 
       // storage update
+      console.log('Executing Value Change Request');
       verifier.update(updateMsg, (err, resp) => {
         if (err) {
           throw new Error('Update failed: Value Request');
         }
+        console.log(
+            'Valuechange Request Executed, verifying update using client');
         checkResponse(client, address, bigIntBalance, testname);
-        console.log('Test Success: Value Request');
         serialize = true;
       });
     };
@@ -183,12 +187,13 @@ const testDeleteOp =
       updateMsg.setOperationsList(opList);
 
       // storage update
+      console.log('Executing Delete Request');
       verifier.update(updateMsg, (err, resp) => {
         if (err) {
           throw new Error('Update failed: Delete Request');
         }
+        console.log('Delete Request Executed, verifying update using client');
         checkResponse(client, address, BigInt(0), testname);
-        console.log('Test Success: Delete Request');
         serialize = true;
       });
     };
@@ -228,15 +233,16 @@ const testExecutionOp =
       updateMsg.setOperationsList(opList);
 
       // storage update
+      console.log('Executing Execute Request');
       verifier.update(updateMsg, (err, resp) => {
         if (err) {
           throw new Error('Update failed: Execute Request');
         }
+        // if (!resp) {
+        //   throw new Error('Update failed: Execute Request');
+        // }
+        console.log('Execute Request Executed, verifying update using client');
         checkResponse(client, address, bigIntBalance, testname);
-        if (!resp) {
-          throw new Error('Update failed: Execute Request');
-        }
-        console.log('Test Sucess: Execute Request');
         serialize = true;
       });
     };
@@ -287,6 +293,7 @@ const runVerifier = (host: string, port: string) => {
     console.log('Test Success: Execute should fail');
     return;
   }
+  serialize = false;
   throw new Error('ERROR: Last ExecuteOp should fail');
 };
 
@@ -307,10 +314,9 @@ const callVerifier = () => {
     process.exit(-2);
   } else {
     const slist = snodes.split(',');
-    console.log(slist);
     host = slist[0].split(':')[0];
     port = slist[0].split(':')[1];
-    console.log('Starting verifier at', host, ':', port);
+    console.log('Starting verifier at', host, ':', port, '\n');
     runVerifier(host, port);
   }
 };
