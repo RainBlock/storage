@@ -1,4 +1,4 @@
-import {toBufferBE} from 'bigint-buffer';
+import {toBigIntBE, toBufferBE} from 'bigint-buffer';
 import * as grpc from 'grpc';
 import * as path from 'path';
 import {RlpDecode, RlpDecoderTransform, RlpEncode, RlpList} from 'rlp-stream';
@@ -53,48 +53,9 @@ const getEthereumBlocks = async () => {
   return rlpBlocks;
 };
 
-const checkResponse =
-    (client: StorageNodeService.StorageNodeClient, address: Buffer,
-     balance: bigint, testname: string) => {
-      const request = new AccountRequest();
-      request.setAddress(address);
-      client.getAccount(request, (err, response) => {
-        if (err) {
-          console.log('Error when client checked for account');
-          throw new Error('Error in getAccount rpc');
-        } else {
-          // unpack response
-          const accountVal =
-              Buffer.from(response.getWitness()!.getValue_asU8());
-          const rlpAccount = RlpDecode(accountVal) as RlpList;
-          if (testname === 'deleteTest' || testname === 'execFailTest') {
-            if (!accountVal.length) {
-              console.log('Test Success: Undefined account: ', testname);
-            } else {
-              console.log('FAIL: Should have empty account: ', testname);
-            }
-          } else {
-            const account = rlpToEthereumAccount(rlpAccount);
-            // check correctness
-            assertEquals(account.balance, balance);
-
-            // Logging Information
-            console.log('Test Success: ' + testname + '\n');
-            debugLog.write('Account:\n');
-            debugLog.write(account.balance.toString() + '\n');
-            debugLog.write(account.nonce.toString() + '\n');
-            debugLog.write(account.codeHash.toString() + '\n');
-            debugLog.write(account.storageRoot.toString() + '\n');
-            debugLog.write(
-                '-------------------------------------------------\n');
-          }
-        }
-      });
-    };
-
 const testCreateOp =
     (verifier: VerifierStorageService.VerifierStorageClient, block: RlpList,
-     client: StorageNodeService.StorageNodeClient, testname: string) => {
+     client: StorageNodeService.StorageNodeClient) => {
       // create request
       const createOp = new CreationOp();
       const address =
@@ -127,15 +88,41 @@ const testCreateOp =
         if (err) {
           throw new Error('Update failed: Create Request');
         }
-        console.log('Create Request Executed, verifying update using client');
-        checkResponse(client, address, bigIntBalance, testname);
+        const request = new AccountRequest();
+        request.setAddress(address);
+        client.getAccount(request, (err, response) => {
+          if (err) {
+            throw new Error('Error in getAccount rpc');
+          }
+          const nonce = BigInt(0);
+
+          // unpack response
+          const accountVal =
+              Buffer.from(response.getWitness()!.getValue_asU8());
+          const rlpAccount = RlpDecode(accountVal) as RlpList;
+          const account = rlpToEthereumAccount(rlpAccount);
+
+          // check correctness
+          assertEquals(account.nonce, nonce);
+          assertEquals(account.balance, bigIntBalance);
+
+          // Logging Information
+          console.log('Test Success: Create verified');
+          debugLog.write('Test Success: Create verified\n');
+          debugLog.write('Account:\n');
+          debugLog.write(account.balance.toString() + '\n');
+          debugLog.write(account.nonce.toString() + '\n');
+          debugLog.write(account.codeHash.toString() + '\n');
+          debugLog.write(account.storageRoot.toString() + '\n');
+          debugLog.write('-------------------------------------------------\n');
+        });
         serialize = true;
       });
     };
 
 const testValueOp =
     (verifier: VerifierStorageService.VerifierStorageClient, block: RlpList,
-     client: StorageNodeService.StorageNodeClient, testname: string) => {
+     client: StorageNodeService.StorageNodeClient) => {
       // create request
       const address =
           Buffer.from('000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'hex');
@@ -161,16 +148,42 @@ const testValueOp =
         if (err) {
           throw new Error('Update failed: Value Request');
         }
-        console.log(
-            'Valuechange Request Executed, verifying update using client');
-        checkResponse(client, address, bigIntBalance, testname);
+        const request = new AccountRequest();
+        request.setAddress(address);
+        client.getAccount(request, (err, response) => {
+          if (err) {
+            throw new Error('Error in getAccount rpc');
+          }
+          const nonce = BigInt(1);
+
+          // unpack response
+          const accountVal =
+              Buffer.from(response.getWitness()!.getValue_asU8());
+          const rlpAccount = RlpDecode(accountVal) as RlpList;
+          const account = rlpToEthereumAccount(rlpAccount);
+
+          // check correctness
+          assertEquals(account.nonce, nonce);
+          assertEquals(account.balance, bigIntBalance);
+
+          // Logging Information
+          console.log('Test Success: Value Change verified');
+          debugLog.write('Test Success: Value Change verified\n');
+          debugLog.write('Account:\n');
+          debugLog.write(account.balance.toString() + '\n');
+          debugLog.write(account.nonce.toString() + '\n');
+          debugLog.write(account.codeHash.toString() + '\n');
+          debugLog.write(account.storageRoot.toString() + '\n');
+          debugLog.write('-------------------------------------------------\n');
+        });
+
         serialize = true;
       });
     };
 
 const testDeleteOp =
     (verifier: VerifierStorageService.VerifierStorageClient, block: RlpList,
-     client: StorageNodeService.StorageNodeClient, testname: string) => {
+     client: StorageNodeService.StorageNodeClient) => {
       // create request
       const address =
           Buffer.from('000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'hex');
@@ -192,15 +205,30 @@ const testDeleteOp =
         if (err) {
           throw new Error('Update failed: Delete Request');
         }
-        console.log('Delete Request Executed, verifying update using client');
-        checkResponse(client, address, BigInt(0), testname);
+        const request = new AccountRequest();
+        request.setAddress(address);
+        client.getAccount(request, (error, response) => {
+          // unpack response
+          const account = response.getWitness();
+          const accountVal = account!.getValue();
+
+          // check correctness
+          if (accountVal) {
+            throw new Error('Delete failed to delete account');
+          }
+
+          // Logging Information
+          console.log('Test Success: Delete verified');
+          debugLog.write('Test Success: Delete verified\n');
+          debugLog.write('-------------------------------------------------\n');
+        });
         serialize = true;
       });
     };
 
 const testExecutionOp =
     (verifier: VerifierStorageService.VerifierStorageClient, block: RlpList,
-     client: StorageNodeService.StorageNodeClient, testname: string) => {
+     client: StorageNodeService.StorageNodeClient) => {
       // create request
       const address =
           Buffer.from('000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', 'hex');
@@ -241,8 +269,60 @@ const testExecutionOp =
         // if (!resp) {
         //   throw new Error('Update failed: Execute Request');
         // }
-        console.log('Execute Request Executed, verifying update using client');
-        checkResponse(client, address, bigIntBalance, testname);
+        const request = new StorageRequest();
+        request.setAddress(address);
+        request.setKey(Buffer.from('000b', 'hex'));
+        client.getStorage(request, (err, response) => {
+          const account = response.getWitness();
+          const value = response.getWitness()!.getValue_asU8();
+          assertEquals(toBigIntBE(Buffer.from(value)), toBigIntBE(address));
+          console.log('Test Success: Execute for storageInsert verified');
+          debugLog.write('Test Success: Execute - storageInsert\n');
+        });
+
+        request.setKey(address);
+        client.getStorage(request, (err, response) => {
+          const account = response.getWitness();
+          const value = response.getWitness()!.getValue();
+          if (!account || value) {
+            throw new Error(
+                'Error: Execute storageDelete did not delete: account should exist but value should not be present');
+          }
+          console.log('Test Success: Execute for storageDelete verified');
+          debugLog.write('Test Success: Execute - storageDelete\n');
+        });
+
+        const acrequest = new AccountRequest();
+        acrequest.setAddress(address);
+        client.getAccount(acrequest, (err, response) => {
+          if (err) {
+            throw new Error('Error in getAccount rpc');
+          }
+
+          // unpack response
+          const accountVal =
+              Buffer.from(response.getWitness()!.getValue_asU8());
+          const rlpAccount = RlpDecode(accountVal) as RlpList;
+          const account = rlpToEthereumAccount(rlpAccount);
+
+          // Nonce does not change
+          const nonce = BigInt(1);
+
+          // check correctness
+          assertEquals(account.nonce, nonce);
+          assertEquals(account.balance, bigIntBalance);
+
+          // Logging Information
+          console.log('Test Success: Execute changes balance but not nonce');
+          debugLog.write('Test Success: Execute - balance + nonce\n');
+          debugLog.write('Account:\n');
+          debugLog.write(account.balance.toString() + '\n');
+          debugLog.write(account.nonce.toString() + '\n');
+          debugLog.write(account.codeHash.toString() + '\n');
+          debugLog.write(account.storageRoot.toString() + '\n');
+          debugLog.write('-------------------------------------------------\n');
+        });
+
         serialize = true;
       });
     };
@@ -259,42 +339,33 @@ const runVerifier = (host: string, port: string) => {
 
   // Test server update RPC
   try {
-    testCreateOp(verifier, data[1], checkerClient, 'createTest');
+    testCreateOp(verifier, data[1], checkerClient);
     wait.for.predicate(() => serialize);
   } catch (e) {
     console.log('Failed: CreateOp update');
   }
   serialize = false;
   try {
-    testValueOp(verifier, data[2], checkerClient, 'valChangeTest');
+    testValueOp(verifier, data[2], checkerClient);
     wait.for.predicate(() => serialize);
   } catch (e) {
     console.log('Failed: ValueOp update');
   }
   serialize = false;
   try {
-    testExecutionOp(verifier, data[3], checkerClient, 'executeTest');
+    testExecutionOp(verifier, data[3], checkerClient);
     wait.for.predicate(() => serialize);
   } catch (e) {
     console.log('Failed: ExecutionOp update');
   }
   serialize = false;
   try {
-    testDeleteOp(verifier, data[4], checkerClient, 'deleteTest');
+    testDeleteOp(verifier, data[4], checkerClient);
     wait.for.predicate(() => serialize);
   } catch (e) {
     console.log('Failed: DeletionOp update');
   }
   serialize = false;
-  try {
-    testExecutionOp(verifier, data[5], checkerClient, 'execFailTest');
-    wait.for.predicate(() => serialize);
-  } catch (e) {
-    console.log('Test Success: Execute should fail');
-    return;
-  }
-  serialize = false;
-  throw new Error('ERROR: Last ExecuteOp should fail');
 };
 
 const printUsage = () => {
