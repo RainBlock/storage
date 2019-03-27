@@ -7,7 +7,7 @@ import {RlpDecode, RlpList} from 'rlp-stream/build/src/rlp-stream';
 import {StorageNodeService} from '../build/proto/clientStorage_grpc_pb';
 import {AccountReply, AccountRequest, BlockHashReply, BlockHashRequest, CodeReply, CodeRequest, MerklePatriciaTreeNode, RPCWitness, StorageReply, StorageRequest} from '../build/proto/clientStorage_pb';
 import {VerifierStorageService} from '../build/proto/verifierStorage_grpc_pb';
-import {CreationOp, DeletionOp, ExecutionOp, StorageDeletion, StorageInsertion, UpdateMsg, ValueChangeOp} from '../build/proto/verifierStorage_pb';
+import {UpdateMsg} from '../build/proto/verifierStorage_pb';
 
 import {StorageNode} from './index';
 import * as utils from './utils';
@@ -252,7 +252,7 @@ const update =
               accountStorage.push(sopupdate);
 
             } else if (sopItem.hasDeletes()) {
-              const sop = sopItem.getInserts();
+              const sop = sopItem.getDeletes();
               if (!sop) {
                 continue;
               }
