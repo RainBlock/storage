@@ -83,7 +83,7 @@ const testCreateOp =
       updateMsg.setOperationsList(opList);
 
       // storage update
-      console.log('Executing Create Request');
+      console.log('... Executing Create Request');
       verifier.update(updateMsg, (err, resp) => {
         if (err) {
           throw new Error('Update failed: Create Request');
@@ -115,8 +115,10 @@ const testCreateOp =
           debugLog.write(account.codeHash.toString() + '\n');
           debugLog.write(account.storageRoot.toString() + '\n');
           debugLog.write('-------------------------------------------------\n');
+
+          // Allow next call
+          serialize = true;
         });
-        serialize = true;
       });
     };
 
@@ -143,7 +145,7 @@ const testValueOp =
       updateMsg.setOperationsList(opList);
 
       // storage update
-      console.log('Executing Value Change Request');
+      console.log('... Executing Value Change Request');
       verifier.update(updateMsg, (err, resp) => {
         if (err) {
           throw new Error('Update failed: Value Request');
@@ -175,9 +177,10 @@ const testValueOp =
           debugLog.write(account.codeHash.toString() + '\n');
           debugLog.write(account.storageRoot.toString() + '\n');
           debugLog.write('-------------------------------------------------\n');
-        });
 
-        serialize = true;
+          // Allow next call
+          serialize = true;
+        });
       });
     };
 
@@ -200,7 +203,7 @@ const testDeleteOp =
       updateMsg.setOperationsList(opList);
 
       // storage update
-      console.log('Executing Delete Request');
+      console.log('... Executing Delete Request');
       verifier.update(updateMsg, (err, resp) => {
         if (err) {
           throw new Error('Update failed: Delete Request');
@@ -221,8 +224,10 @@ const testDeleteOp =
           console.log('Test Success: Delete verified');
           debugLog.write('Test Success: Delete verified\n');
           debugLog.write('-------------------------------------------------\n');
+
+          // Allow next call
+          serialize = true;
         });
-        serialize = true;
       });
     };
 
@@ -261,7 +266,7 @@ const testExecutionOp =
       updateMsg.setOperationsList(opList);
 
       // storage update
-      console.log('Executing Execute Request');
+      console.log('... Executing Execute Request');
       verifier.update(updateMsg, (err, resp) => {
         if (err) {
           throw new Error('Update failed: Execute Request');
@@ -318,9 +323,10 @@ const testExecutionOp =
           debugLog.write(account.codeHash.toString() + '\n');
           debugLog.write(account.storageRoot.toString() + '\n');
           debugLog.write('-------------------------------------------------\n');
-        });
 
-        serialize = true;
+          // Allow next call
+          serialize = true;
+        });
       });
     };
 
