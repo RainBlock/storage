@@ -1,7 +1,8 @@
 import {decodeBlock, EthereumBlock} from '@rainblock/ethereum-block';
-import {BatchPut, MerklePatriciaTree, RlpWitness, verifyWitness, Witness} from '@rainblock/merkle-patricia-tree';
+import {BatchPut, BranchNode, CachedMerklePatriciaTree, HashNode, MerklePatriciaTree, MerklePatriciaTreeNode, MerklePatriciaTreeOptions, RlpWitness, verifyWitness, Witness} from '@rainblock/merkle-patricia-tree';
 import {toBigIntBE, toBufferBE} from 'bigint-buffer';
 import {hashAsBigInt, hashAsBuffer, HashType} from 'bigint-hash';
+import {Hash} from 'crypto';
 import * as fs from 'fs-extra';
 import {RlpDecode, RlpEncode, RlpList} from 'rlp-stream';
 
@@ -227,7 +228,7 @@ export class StorageNode<K = Buffer, V = Buffer> implements
     return false;
   }
 
-  update(rlpBlock: RlpList, putOps: UpdateOps, merkleHashes?: Buffer[]) {
+  update(rlpBlock: RlpList, putOps: UpdateOps, merkleNodes?: Buffer) {
     this.gc();
     const block: EthereumBlock = decodeBlock(rlpBlock);
     this.verifyPOW(rlpBlock);
@@ -307,14 +308,8 @@ export class StorageNode<K = Buffer, V = Buffer> implements
 
     const trie = parentState.batchCOW(updateOps, delOps);
     const root = trie.root;
-    if (merkleHashes) {
-      merkleHashes[this._shard] = root;
-      const globalRoot =
-          hashAsBigInt(HashType.KECCAK256, RlpEncode(merkleHashes));
-      if (globalRoot !== block.header.stateRoot) {
-        throw new Error(
-            'sharded stateRoots don\'t has to block\'s global stateRoot');
-      }
+    if (merkleNodes && merkleNodes.length === 1) {
+      this._checkRoots(root, block.header.stateRoot, merkleNodes);
     }
     const blockNum = block.header.blockNumber;
     const blockHash = computeBlockHash(rlpBlock);
@@ -325,6 +320,37 @@ export class StorageNode<K = Buffer, V = Buffer> implements
     this._highestBlockNumber = (this._highestBlockNumber > blockNum) ?
         this._highestBlockNumber :
         blockNum;
+  }
+
+  private _checkRoots(shRoot: Buffer, bRoot: bigint, rlp: Buffer) {
+    const cache = new CachedMerklePatriciaTree<Buffer, Buffer>();
+    const rootNode: MerklePatriciaTreeNode<Buffer> =
+        cache.rlpToMerkleNode(rlp, (val: Buffer) => (val));
+
+    const merkleHashes: Buffer[] = [];
+    let branchIdx = 0;
+    if (rootNode instanceof BranchNode) {
+      for (const branch of rootNode.branches) {
+        if (!branch) {
+          branchIdx += 1;
+          continue;
+        }
+        merkleHashes[branchIdx] = toBufferBE(
+            branch.hash({} as MerklePatriciaTreeOptions<{}, Buffer>), 32);
+        branchIdx += 1;
+      }
+    }
+    const valHash = (rootNode.value === null) ?
+        Buffer.from([]) :
+        hashAsBuffer(HashType.KECCAK256, rootNode.value);
+    merkleHashes.push(valHash);
+    merkleHashes[this._shard] = shRoot;
+
+    const rHash = hashAsBigInt(HashType.KECCAK256, RlpEncode(merkleHashes));
+    if (rHash !== bRoot) {
+      throw new Error(
+          'sharded stateRoots don\'t has to block\'s global stateRoot');
+    }
   }
 
   getRecentBlocks(): Array<bigint> {

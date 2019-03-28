@@ -285,7 +285,11 @@ const update =
       }
       // storage call;
       try {
-        storage.update(rlpBlock, update);
+        if (merkleNodes.length === 0) {
+          storage.update(rlpBlock, update);
+        } else {
+          storage.update(rlpBlock, update, merkleNodes);
+        }
       } catch (e) {
         console.log('ERROR: update\n', e);
         callback(e, new Empty());
