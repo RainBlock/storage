@@ -21,7 +21,7 @@ const getCodeInfo =
     (call: ServerUnaryCall<CodeRequest>,
      callback: sendUnaryData<CodeReply>) => {
       // Log the request
-      console.log('Received getCodeInfo Call');
+      // console.log('Received getCodeInfo Call');
 
       // unpack request
       const address = Buffer.from(call.request.getAddress_asU8());
@@ -32,7 +32,7 @@ const getCodeInfo =
       try {
         ret = storage.getCode(address, codeOnly);
       } catch (e) {
-        console.log('ERROR: getCodeInfo\n', e);
+        // console.log('ERROR: getCodeInfo\n', e);
         callback(e, null);
         return;
       }
@@ -75,7 +75,7 @@ const getAccount =
     (call: ServerUnaryCall<AccountRequest>,
      callback: sendUnaryData<AccountReply>) => {
       // Log the request
-      console.log('Received getAccount call');
+      // console.log('Received getAccount call');
 
       // unpack request
       const address = Buffer.from(call.request.getAddress_asU8());
@@ -85,7 +85,7 @@ const getAccount =
       try {
         ret = storage.get(address);
       } catch (e) {
-        console.log('ERROR: getAccount\n', e);
+        // console.log('ERROR: getAccount\n', e);
         callback(e, null);
         return;
       }
@@ -114,7 +114,7 @@ const getStorage =
     (call: ServerUnaryCall<StorageRequest>,
      callback: sendUnaryData<StorageReply>) => {
       // Log the request
-      console.log('Received getStorage call');
+      // console.log('Received getStorage call');
 
       // unpack request
       const address = Buffer.from(call.request.getAddress_asU8());
@@ -125,7 +125,7 @@ const getStorage =
       try {
         ret = storage.getStorage(address, toBigIntBE(key));
       } catch (e) {
-        console.log('ERROR: getStorage\n', e);
+        // console.log('ERROR: getStorage\n', e);
         callback(e, null);
         return;
       }
@@ -157,7 +157,7 @@ const getBlockHash =
     (call: ServerUnaryCall<BlockHashRequest>,
      callback: sendUnaryData<BlockHashReply>) => {
       // Log the request
-      console.log('Received getBlockHash call');
+      // console.log('Received getBlockHash call');
 
       // unpack request
       const blockNumber = BigInt(call.request.getNumber());
@@ -167,7 +167,7 @@ const getBlockHash =
       try {
         ret = storage.getBlockHash(blockNumber);
       } catch (e) {
-        console.log('ERROR getBlockHash\n', e);
+        // console.log('ERROR getBlockHash\n', e);
         callback(e, null);
         return;
       }
@@ -186,7 +186,7 @@ const getBlockHash =
 const update =
     (call: ServerUnaryCall<UpdateMsg>, callback: sendUnaryData<Empty>) => {
       // Log request
-      console.log('Received Update call');
+      // console.log('Received Update call');
 
       // unpack request;
       const block = Buffer.from(call.request.getRlpBlock_asU8());
@@ -295,7 +295,7 @@ const update =
           storage.update(rlpBlock, update, merkleNodes);
         }
       } catch (e) {
-        console.log('ERROR: update\n', e);
+        // console.log('ERROR: update\n', e);
         callback(e, new Empty());
         return;
       }
