@@ -1,3 +1,4 @@
+import {MerklePatriciaTree} from '@rainblock/merkle-patricia-tree/build/src';
 import {toBigIntBE, toBufferBE} from 'bigint-buffer';
 import {Empty} from 'google-protobuf/google/protobuf/empty_pb';
 import * as grpc from 'grpc';
@@ -14,6 +15,7 @@ import * as utils from './utils';
 
 
 let storage: StorageNode;
+const serializer = new MerklePatriciaTree();
 
 const getCodeInfo =
     (call: ServerUnaryCall<CodeRequest>,
@@ -36,16 +38,16 @@ const getCodeInfo =
       }
       const code = ret.code;
       const exists = (code) ? true : false;
-      const account = ret.account;
 
       // pack reply
-      if (!account) {
+      if (!ret.account) {
         const reply = new CodeReply();
         if (code) {
           reply.setCode(new Uint8Array(code));
         }
         callback(null, reply);
       } else {
+        const account = serializer.rlpSerializeWitness(ret.account);
         const reply = new CodeReply();
         const accountReply = new AccountReply();
         const nodeList = new Array<MerklePatriciaTreeNode>();
@@ -90,16 +92,17 @@ const getAccount =
       const exists = (ret.value) ? true : false;
 
       // pack reply
+      const account = serializer.rlpSerializeWitness(ret);
       const reply = new AccountReply();
       reply.setExists(exists);
       const nodeList = new Array<MerklePatriciaTreeNode>();
       const witness = new RPCWitness();
-      if (ret.value) {
-        witness.setValue(new Uint8Array(ret.value));
+      if (account.value) {
+        witness.setValue(new Uint8Array(account.value));
       }
-      for (let i = 0; i < ret.proof.length; i++) {
+      for (let i = 0; i < account.proof.length; i++) {
         const treeNode = new MerklePatriciaTreeNode();
-        treeNode.setEncoding(new Uint8Array(ret.proof[i]));
+        treeNode.setEncoding(new Uint8Array(account.proof[i]));
         nodeList.push(treeNode);
       }
       witness.setProofList(nodeList);
@@ -134,14 +137,15 @@ const getStorage =
         return;
       }
       const reply = new StorageReply();
+      const accStorage = serializer.rlpSerializeWitness(ret);
       const witness = new RPCWitness();
-      if (ret.value) {
-        witness.setValue(new Uint8Array(ret.value));
+      if (accStorage.value) {
+        witness.setValue(new Uint8Array(accStorage.value));
       }
       const nodeList = new Array<MerklePatriciaTreeNode>();
-      for (let i = 0; i < ret.proof.length; i++) {
+      for (let i = 0; i < accStorage.proof.length; i++) {
         const treeNode = new MerklePatriciaTreeNode();
-        treeNode.setEncoding(new Uint8Array(ret.proof[i]));
+        treeNode.setEncoding(new Uint8Array(accStorage.proof[i]));
         nodeList.push(treeNode);
       }
       witness.setProofList(nodeList);

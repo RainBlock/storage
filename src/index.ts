@@ -1,8 +1,7 @@
 import {decodeBlock, EthereumBlock} from '@rainblock/ethereum-block';
-import {BatchPut, BranchNode, CachedMerklePatriciaTree, HashNode, MerklePatriciaTree, MerklePatriciaTreeNode, MerklePatriciaTreeOptions, RlpWitness, verifyWitness, Witness} from '@rainblock/merkle-patricia-tree';
+import {BatchPut, BranchNode, CachedMerklePatriciaTree, MerklePatriciaTree, MerklePatriciaTreeNode, MerklePatriciaTreeOptions, RlpWitness, verifyWitness, Witness} from '@rainblock/merkle-patricia-tree';
 import {toBigIntBE, toBufferBE} from 'bigint-buffer';
 import {hashAsBigInt, hashAsBuffer, HashType} from 'bigint-hash';
-import {Hash} from 'crypto';
 import * as fs from 'fs-extra';
 import {RlpDecode, RlpEncode, RlpList} from 'rlp-stream';
 
@@ -13,21 +12,19 @@ const level = require('level-mem');
 const ethjsBlock = require('ethereumjs-block');
 const multiMap = require('multimap');
 
-export interface Storage<K = Buffer, V = Buffer> {
+export interface Storage {
   isEmpty: () => boolean;
-  get: (key: Buffer, root?: Buffer) => RlpWitness;
+  get: (key: Buffer, root?: Buffer) => Witness<Buffer>;
   getCode: (address: Buffer, codeOnly: boolean) => {
-    code: Buffer|undefined, account: RlpWitness|undefined
+    code: Buffer|undefined, account: Witness<Buffer>|undefined
   };
-  getStorage: (address: Buffer, key: bigint) => RlpWitness | null;
+  getStorage: (address: Buffer, key: bigint) => Witness<Buffer>| null;
   putGenesis: (genesisJSON?: string, genesisBIN?: string) => void;
   update: (block: RlpList, putOps: UpdateOps) => void;
-  prove: (root: Buffer, key: Buffer, witness: RlpWitness) => boolean;
   getRecentBlocks: () => Array<bigint>;
 }
 
-export class StorageNode<K = Buffer, V = Buffer> implements
-    Storage<Buffer, Buffer> {
+export class StorageNode implements Storage {
   /**
    * Determines the the StorageNode's partition
    */
@@ -370,18 +367,18 @@ export class StorageNode<K = Buffer, V = Buffer> implements
     return (retVal) ? retVal : [];
   }
 
-  get(address: Buffer): RlpWitness {
+  get(address: Buffer): Witness<Buffer> {
     const stateList: MerklePatriciaTree[]|MerklePatriciaTree =
         this._activeSnapshots.get(this._highestBlockNumber);
     if (stateList instanceof Array) {
       const s = stateList[0];
-      return s.rlpSerializeWitness(s.get(address));
+      return s.get(address);
     } else {
-      return stateList.rlpSerializeWitness(stateList.get(address));
+      return stateList.get(address);
     }
   }
 
-  getStorage(address: Buffer, key: bigint): RlpWitness|null {
+  getStorage(address: Buffer, key: bigint): Witness<Buffer>|null {
     const currentSnapshot: MerklePatriciaTree[]|MerklePatriciaTree =
         this._activeSnapshots.get(this._highestBlockNumber);
     let state;
@@ -408,11 +405,11 @@ export class StorageNode<K = Buffer, V = Buffer> implements
     }
     const convKey = hashAsBuffer(HashType.KECCAK256, toBufferBE(key, 20));
     const ret = storageTrie.get(convKey);
-    return storageTrie.rlpSerializeWitness(ret);
+    return ret;
   }
 
   getCode(address: Buffer, codeOnly: boolean):
-      {code: Buffer|undefined, account: RlpWitness|undefined} {
+      {code: Buffer|undefined, account: Witness<Buffer>|undefined} {
     const currentSnapshot: MerklePatriciaTree =
         this._activeSnapshots.get(this._highestBlockNumber);
     let state;
@@ -428,12 +425,11 @@ export class StorageNode<K = Buffer, V = Buffer> implements
     }
     const witness = state.get(address);
     const rlpaccount = witness.value;
-    const rlpwitness = state.rlpSerializeWitness(witness);
     if (!rlpaccount) {
       if (codeOnly) {
         return {code: undefined, account: undefined};
       }
-      return {code: undefined, account: rlpwitness};
+      return {code: undefined, account: witness};
     }
     const account = rlpToEthereumAccount(RlpDecode(rlpaccount) as RlpList);
     const codeHash = account.codeHash;
@@ -441,11 +437,6 @@ export class StorageNode<K = Buffer, V = Buffer> implements
     if (codeOnly) {
       return {code, account: undefined};
     }
-    return {code, account: rlpwitness};
-  }
-
-  prove(root: Buffer, key: Buffer, witness: RlpWitness): boolean {
-    verifyWitness(root, key, witness);
-    return true;
+    return {code, account: witness};
   }
 }
