@@ -13,7 +13,7 @@ const codeInfoTimeArray = new Array<number>();
 const accountTimeArray = new Array<number>();
 
 let serialize = false;
-const times = 5;
+const times = 1;
 
 const readAccounts = () => {
   const accounts =
@@ -34,18 +34,18 @@ const benchGetCodeInfoNoCode =
         request.setCodeOnly(true);
         codeRequestArray.push(request);
       }
-
+      const len = accounts.length;
       let finished = 0;
       const hrstart = process.hrtime();
-      for (let idx = 0; idx < accounts.length; idx++) {
-        client.getCodeInfo(codeRequestArray[idx], (err, response) => {
+      for (let idx = 0; idx < len * times; idx++) {
+        client.getCodeInfo(codeRequestArray[idx % len], (err, response) => {
           if (err) {
             throw new Error('Error in getCodeInfo rpc');
           }
           finished++;
-          if (finished === accounts.length) {
+          if (finished === len * times) {
             const hrend = process.hrtime(hrstart);
-            const ops = accounts.length;
+            const ops = len * times;
             const time = hrend![0] * 1000 + hrend![1] / 1000000;
             console.log(
                 '%d ops/ms  %dops %dms CodeInfoNoCode', (ops / time).toFixed(2),
@@ -67,26 +67,27 @@ const benchGetCodeInfo =
       }
 
       let finished = 0;
+      const len = accounts.length;
       const hrstart = process.hrtime();
-      for (let i = 0; i < times; i++) {
-        for (let idx = 0; idx < accounts.length; idx++) {
-          client.getCodeInfo(codeRequestArray[idx], (err, response) => {
-            if (err) {
-              throw new Error('Error in getCodeInfo rpc');
-            }
-            finished++;
-            if (finished === accounts.length && i === times - 1) {
-              const hrend = process.hrtime(hrstart);
-              const ops = accounts.length;
-              const time = hrend![0] * 1000 + hrend![1] / 1000000;
-              console.log(
-                  '%d ops/ms  %dops %dms CodeInfo', (ops / time).toFixed(2),
-                  ops, time);
-              serialize = true;
-            }
-          });
-        }
+      //      for (let i = 0; i < times; i++) {
+      for (let idx = 0; idx < len * times; idx++) {
+        client.getCodeInfo(codeRequestArray[idx % len], (err, response) => {
+          if (err) {
+            throw new Error('Error in getCodeInfo rpc');
+          }
+          finished++;
+          if (finished === len * times) {
+            const hrend = process.hrtime(hrstart);
+            const ops = len * times;
+            const time = hrend![0] * 1000 + hrend![1] / 1000000;
+            console.log(
+                '%d ops/ms  %dops %dms CodeInfo', (ops / time).toFixed(2), ops,
+                time);
+            serialize = true;
+          }
+        });
       }
+      //      }
     };
 
 const benchGetSingleCodeInfo =
@@ -160,28 +161,28 @@ const benchGetAccount =
         request.setAddress(Buffer.from(accounts[idx], 'hex'));
         accountRequestArray.push(request);
       }
-
+      const len = accounts.length;
       let finished = 0;
       const hrstart = process.hrtime();
-      for (let i = 0; i < times; i++) {
-        for (let idx = 0; idx < accounts.length; idx++) {
-          client.getAccount(accountRequestArray[idx], (err, response) => {
-            if (err) {
-              throw new Error('Error in getAccount rpc');
-            }
-            finished++;
-            if (finished === accounts.length && i === times - 1) {
-              const hrend = process.hrtime(hrstart);
-              const ops = accounts.length;
-              const time = hrend![0] * 1000 + hrend![1] / 1000000;
-              console.log(
-                  '%d ops/ms  %dops %dms Account', (ops / time).toFixed(2), ops,
-                  time);
-              serialize = true;
-            }
-          });
-        }
+      //      for (let i = 0; i < times; i++) {
+      for (let idx = 0; idx < len * times; idx++) {
+        client.getAccount(accountRequestArray[idx % len], (err, response) => {
+          if (err) {
+            throw new Error('Error in getAccount rpc');
+          }
+          finished++;
+          if (finished === len * times) {
+            const hrend = process.hrtime(hrstart);
+            const ops = len * times;
+            const time = hrend![0] * 1000 + hrend![1] / 1000000;
+            console.log(
+                '%d ops/ms  %dops %dms Account', (ops / time).toFixed(2), ops,
+                time);
+            serialize = true;
+          }
+        });
       }
+      //      }
     };
 
 const benchGetAccountInexistent =
@@ -193,28 +194,28 @@ const benchGetAccountInexistent =
             Buffer.from('0000000000000000000000000000000000000000', 'hex'));
         accountRequestArray.push(request);
       }
-
+      const len = accounts.length;
       let finished = 0;
       const hrstart = process.hrtime();
-      for (let i = 0; i < times; i++) {
-        for (let idx = 0; idx < accounts.length; idx++) {
-          client.getAccount(accountRequestArray[idx], (err, response) => {
-            if (err) {
-              throw new Error('Error in getAccount rpc');
-            }
-            finished++;
-            if (finished === accounts.length && i === times - 1) {
-              const hrend = process.hrtime(hrstart);
-              const ops = accounts.length;
-              const time = hrend![0] * 1000 + hrend![1] / 1000000;
-              console.log(
-                  '%d ops/ms  %dops %dms AccountInexistent',
-                  (ops / time).toFixed(2), ops, time);
-              serialize = true;
-            }
-          });
-        }
+      //      for (let i = 0; i < times; i++) {
+      for (let idx = 0; idx < len * times; idx++) {
+        client.getAccount(accountRequestArray[idx % len], (err, response) => {
+          if (err) {
+            throw new Error('Error in getAccount rpc');
+          }
+          finished++;
+          if (finished === len * times) {
+            const hrend = process.hrtime(hrstart);
+            const ops = len * times;
+            const time = hrend![0] * 1000 + hrend![1] / 1000000;
+            console.log(
+                '%d ops/ms  %dops %dms AccountInexistent',
+                (ops / time).toFixed(2), ops, time);
+            serialize = true;
+          }
+        });
       }
+      //      }
     };
 
 const benchGetStorageKeyInexistent =
@@ -226,30 +227,30 @@ const benchGetStorageKeyInexistent =
         request.setKey(Buffer.from(accounts[idx], 'hex'));
         storageRequestArray.push(request);
       }
-
+      const len = accounts.length;
       let finished = 0;
       const hrstart = process.hrtime();
-      for (let i = 0; i < times; i++) {
-        for (let idx = 0; idx < accounts.length; idx++) {
-          client.getStorage(storageRequestArray[idx], (err, response) => {
-            if (err) {
-              console.log(err);
-              throw new Error('Error in benchGetStorageKeyInexistent rpc');
-            }
-            finished++;
-            // console.log(idx);
-            if (finished === accounts.length && i === times - 1) {
-              const hrend = process.hrtime(hrstart);
-              const ops = accounts.length;
-              const time = hrend![0] * 1000 + hrend![1] / 1000000;
-              console.log(
-                  '%d ops/ms  %dops %dms StorageKeyInexistent',
-                  (ops / time).toFixed(2), ops, time);
-              serialize = true;
-            }
-          });
-        }
+      //      for (let i = 0; i < times; i++) {
+      for (let idx = 0; idx < len * times; idx++) {
+        client.getStorage(storageRequestArray[idx % len], (err, response) => {
+          if (err) {
+            console.log(err);
+            throw new Error('Error in benchGetStorageKeyInexistent rpc');
+          }
+          finished++;
+          // console.log(idx);
+          if (finished === len * times) {
+            const hrend = process.hrtime(hrstart);
+            const ops = len * times;
+            const time = hrend![0] * 1000 + hrend![1] / 1000000;
+            console.log(
+                '%d ops/ms  %dops %dms StorageKeyInexistent',
+                (ops / time).toFixed(2), ops, time);
+            serialize = true;
+          }
+        });
       }
+      //      }
     };
 
 const benchGetStorage =
@@ -262,29 +263,29 @@ const benchGetStorage =
             Buffer.from('0000000000000000000000000000000000000001', 'hex'));
         storageRequestArray.push(request);
       }
-
+      const len = accounts.length;
       let finished = 0;
       const hrstart = process.hrtime();
-      for (let i = 0; i < times; i++) {
-        for (let idx = 0; idx < accounts.length; idx++) {
-          client.getStorage(storageRequestArray[idx], (err, response) => {
-            if (err) {
-              console.log(err);
-              throw new Error('Error in benchGetStorageKeyInexistent rpc');
-            }
-            finished++;
-            if (finished === accounts.length && i === times - 1) {
-              const hrend = process.hrtime(hrstart);
-              const ops = accounts.length;
-              const time = hrend![0] * 1000 + hrend![1] / 1000000;
-              console.log(
-                  '%d ops/ms  %dops %dms Storage', (ops / time).toFixed(2), ops,
-                  time);
-              serialize = true;
-            }
-          });
-        }
+      //      for (let i = 0; i < times; i++) {
+      for (let idx = 0; idx < len * times; idx++) {
+        client.getStorage(storageRequestArray[idx % len], (err, response) => {
+          if (err) {
+            console.log(err);
+            throw new Error('Error in benchGetStorageKeyInexistent rpc');
+          }
+          finished++;
+          if (finished === len * times) {
+            const hrend = process.hrtime(hrstart);
+            const ops = len * times;
+            const time = hrend![0] * 1000 + hrend![1] / 1000000;
+            console.log(
+                '%d ops/ms  %dops %dms Storage', (ops / time).toFixed(2), ops,
+                time);
+            serialize = true;
+          }
+        });
       }
+      //      }
     };
 
 // const benchTest = (client: StorageNodeService.StorageNodeClient, accounts:
@@ -327,26 +328,26 @@ const benchGetBlockHash = (client: StorageNodeService.StorageNodeClient) => {
   request.setNumber(blockValid);
   let finished = 0;
   const hrstart = process.hrtime();
-  for (let i = 0; i < times; i++) {
-    for (idx = 0; idx < len; idx++) {
-      client.getBlockHash(request, (err, response) => {
-        const block = response.getHashesList();
-        if (block.length === 0) {
-          throw new Error('getBlockHash: Has response for invalid blocknumber');
-        }
-        finished++;
-        if (finished === len && i === times - 1) {
-          const hrend = process.hrtime(hrstart);
-          const ops = len;
-          const time = hrend![0] * 1000 + hrend![1] / 1000000;
-          console.log(
-              '%d ops/ms  %dops %dms BlockHash', (ops / time).toFixed(2), ops,
-              time);
-          serialize = true;
-        }
-      });
-    }
+  //  for (let i = 0; i < times; i++) {
+  for (idx = 0; idx < len * times; idx++) {
+    client.getBlockHash(request, (err, response) => {
+      const block = response.getHashesList();
+      if (block.length === 0) {
+        throw new Error('getBlockHash: Has response for invalid blocknumber');
+      }
+      finished++;
+      if (finished === len * times) {
+        const hrend = process.hrtime(hrstart);
+        const ops = len * times;
+        const time = hrend![0] * 1000 + hrend![1] / 1000000;
+        console.log(
+            '%d ops/ms  %dops %dms BlockHash', (ops / time).toFixed(2), ops,
+            time);
+        serialize = true;
+      }
+    });
   }
+  //  }
 };
 
 const runTestClient = (host: string, port: string) => {
