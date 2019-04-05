@@ -11,13 +11,7 @@ run_tests:
   stage: test
   script:
    - npm install
-   - npm run prepare
    - npm run test
-   - node -r ts-node/register src/server.ts -1 50051 &
-   - sleep 5
-   - node -r ts-node/register src/testClient.ts
-   - sleep 5
-   - node -r ts-node/register src/testVerifier.ts
 
   tags:
     - docker
