@@ -214,4 +214,11 @@ describe('Client <-> storage functions', async () => {
   });
 });
 
-describe('TODO: Verifier <-> storage', async () => {});
+describe('TODO: Verifier <-> storage', async () => {
+  it('Create: Should be able to create new accounts', async () => {});
+
+  it('Update: Should be able to update existing accounts',
+     async () => {
+
+     });
+});

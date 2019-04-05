@@ -293,7 +293,9 @@ export class StorageNode implements Storage {
             oldAccount.nonce += put.updates;
           }
           if (put.code) {
-            console.log(new Error('Account exists; code can\'t be changed'));
+            const codeHash = hashAsBigInt(HashType.KECCAK256, put.code);
+            this._CodeStorage.set(codeHash, put.code);
+            oldAccount.codeHash = codeHash;
           }
           if (put.storage.length !== 0) {
             const oldStorageRoot = oldAccount.storageRoot;
