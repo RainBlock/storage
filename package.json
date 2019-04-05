@@ -17,8 +17,7 @@
     "fix": "gts fix",
     "pretest": "npm run compile",
     "posttest": "npm run check",
-    "start": "node -r ts-node/register src/index.ts",
-    "prepare": "git submodule init; git submodule update; npm run compile"
+    "start": "node -r ts-node/register src/index.ts"
   },
   "author": {
     "name": "soujanya",
