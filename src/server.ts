@@ -1,11 +1,10 @@
 import {MerklePatriciaTree} from '@rainblock/merkle-patricia-tree/build/src';
+import {AccountReply, AccountRequest, BlockHashReply, BlockHashRequest, CodeReply, CodeRequest, RPCWitness, StorageNodeService, StorageReply, StorageRequest, UpdateMsg, VerifierStorageService} from '@rainblock/protocol';
 import {toBigIntBE, toBufferBE} from 'bigint-buffer';
 import {Empty} from 'google-protobuf/google/protobuf/empty_pb';
 import * as grpc from 'grpc';
 import {sendUnaryData, ServerUnaryCall} from 'grpc';
 import {RlpDecode, RlpList} from 'rlp-stream/build/src/rlp-stream';
-
-import {AccountReply, AccountRequest, BlockHashReply, BlockHashRequest, CodeReply, CodeRequest, MerklePatriciaTreeNode, RPCWitness, StorageNodeService, StorageReply, StorageRequest, UpdateMsg, VerifierStorageService} from '../rainblock-protocol/ts/index';
 
 import {StorageNode} from './index';
 import * as utils from './utils';
@@ -47,17 +46,11 @@ const getCodeInfo =
         const account = serializer.rlpSerializeWitness(ret.account);
         const reply = new CodeReply();
         const accountReply = new AccountReply();
-        const nodeList = new Array<MerklePatriciaTreeNode>();
         const witness = new RPCWitness();
         if (account.value) {
           witness.setValue(new Uint8Array(account.value));
         }
-        for (let i = 0; i < account.proof.length; i++) {
-          const treeNode = new MerklePatriciaTreeNode();
-          treeNode.setEncoding(new Uint8Array(account.proof[i]));
-          nodeList.push(treeNode);
-        }
-        witness.setProofList(nodeList);
+        witness.setProofListList(account.proof);
         accountReply.setExists(exists);
         accountReply.setWitness(witness);
         reply.setAccountInfo(accountReply);
@@ -92,17 +85,11 @@ const getAccount =
       const account = serializer.rlpSerializeWitness(ret);
       const reply = new AccountReply();
       reply.setExists(exists);
-      const nodeList = new Array<MerklePatriciaTreeNode>();
       const witness = new RPCWitness();
       if (account.value) {
         witness.setValue(new Uint8Array(account.value));
       }
-      for (let i = 0; i < account.proof.length; i++) {
-        const treeNode = new MerklePatriciaTreeNode();
-        treeNode.setEncoding(new Uint8Array(account.proof[i]));
-        nodeList.push(treeNode);
-      }
-      witness.setProofList(nodeList);
+      witness.setProofListList(account.proof);
       reply.setWitness(witness);
       callback(null, reply);
     };
@@ -139,13 +126,7 @@ const getStorage =
       if (accStorage.value) {
         witness.setValue(new Uint8Array(accStorage.value));
       }
-      const nodeList = new Array<MerklePatriciaTreeNode>();
-      for (let i = 0; i < accStorage.proof.length; i++) {
-        const treeNode = new MerklePatriciaTreeNode();
-        treeNode.setEncoding(new Uint8Array(accStorage.proof[i]));
-        nodeList.push(treeNode);
-      }
-      witness.setProofList(nodeList);
+      witness.setProofListList(accStorage.proof);
       reply.setWitness(witness);
       callback(null, reply);
     };
