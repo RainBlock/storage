@@ -14,14 +14,17 @@ const multiMap = require('multimap');
 
 export interface Storage {
   isEmpty: () => boolean;
-  get: (key: Buffer, root?: Buffer) => Witness<Buffer>;
-  getCode: (address: Buffer, codeOnly: boolean) => {
-    code: Buffer|undefined, account: Witness<Buffer>|undefined
-  };
-  getStorage: (address: Buffer, key: bigint) => Witness<Buffer>| null;
-  putGenesis: (genesisJSON?: string, genesisBIN?: string) => void;
-  update: (block: RlpList, putOps: UpdateOps[]) => void;
-  getRecentBlocks: () => Array<bigint>;
+  get: (key: Buffer, root?: Buffer) => Promise<Witness<Buffer>>;
+  getCode: (address: Buffer, codeOnly: boolean) => Promise<GetCodeReply>;
+  getStorage: (address: Buffer, key: bigint) => Promise<Witness<Buffer>|null>;
+  putGenesis: (genesisJSON?: string, genesisBIN?: string) => Promise<void>;
+  update: (block: RlpList, putOps: UpdateOps[]) => Promise<void>;
+  getRecentBlocks: () => Promise<Array<bigint>>;
+}
+
+export interface GetCodeReply {
+  code: Buffer|undefined;
+  account: Witness<Buffer>|undefined;
 }
 
 export class StorageNode implements Storage {
@@ -143,18 +146,19 @@ export class StorageNode implements Storage {
         ((!genesisBIN) ? __dirname + '/test_data/genesis.bin' :
                          __dirname + '/' + genesisBIN));
     const rlpGenesis = RlpDecode(data) as RlpList;
-    const genesis = await decodeBlock(rlpGenesis);
-
-    const blockNum = genesis.header.blockNumber;
-    const blockHash = computeBlockHash(rlpGenesis);
-    this._blockchain.set(blockHash, [genesis, trie]);
-    this._blockNumberToHash.set(blockNum, blockHash);
-    this._activeSnapshots.set(blockNum, trie);
-    this._lowestBlockNumber = blockNum;
-    this._highestBlockNumber = blockNum;
+    const prom = decodeBlock(rlpGenesis);
+    prom.then((genesis) => {
+      const blockNum = genesis.header.blockNumber;
+      const blockHash = computeBlockHash(rlpGenesis);
+      this._blockchain.set(blockHash, [genesis, trie]);
+      this._blockNumberToHash.set(blockNum, blockHash);
+      this._activeSnapshots.set(blockNum, trie);
+      this._lowestBlockNumber = blockNum;
+      this._highestBlockNumber = blockNum;
+    });
   }
 
-  private gc() {
+  private async gc() {
     if (this._highestBlockNumber - this._lowestBlockNumber <
         this._gcThreshold) {
       return;
@@ -177,7 +181,7 @@ export class StorageNode implements Storage {
     }
   }
 
-  private persist(block: RlpList, putOps: UpdateOps[]) {
+  private async persist(block: RlpList, putOps: UpdateOps[]) {
     this._logFile.write(RlpEncode(block));
     this._logFile.write('\n#\n');
     for (const put of putOps) {
@@ -336,7 +340,7 @@ export class StorageNode implements Storage {
         blockNum;
   }
 
-  private _checkRoots(shRoot: Buffer, bRoot: bigint, rlp: Buffer) {
+  private async _checkRoots(shRoot: Buffer, bRoot: bigint, rlp: Buffer) {
     const cache = new CachedMerklePatriciaTree<Buffer, Buffer>();
     const rootNode: MerklePatriciaTreeNode<Buffer> =
         cache.rlpToMerkleNode(rlp, (val: Buffer) => (val));
@@ -367,7 +371,7 @@ export class StorageNode implements Storage {
     }
   }
 
-  getRecentBlocks(): Array<bigint> {
+  async getRecentBlocks(): Promise<Array<bigint>> {
     const retVal = [];
     const blockHashIterator = this._blockchain.keys();
     for (const hash of blockHashIterator) {
@@ -376,15 +380,16 @@ export class StorageNode implements Storage {
     return retVal;
   }
 
-  getBlockHash(blockNum: bigint): Array<bigint> {
+  async getBlockHash(blockNum: bigint): Promise<Array<bigint>> {
     if (blockNum === BigInt(-1)) {
-      return this.getRecentBlocks();
+      const prom = this.getRecentBlocks();
+      return prom;
     }
     const retVal = this._blockNumberToHash.get(blockNum);
     return (retVal) ? retVal : [];
   }
 
-  get(address: Buffer): Witness<Buffer> {
+  async get(address: Buffer): Promise<Witness<Buffer>> {
     const stateList: MerklePatriciaTree[]|MerklePatriciaTree =
         this._activeSnapshots.get(this._highestBlockNumber);
     if (stateList instanceof Array) {
@@ -395,7 +400,8 @@ export class StorageNode implements Storage {
     }
   }
 
-  getStorage(address: Buffer, key: bigint): Witness<Buffer>|null {
+  async getStorage(address: Buffer, key: bigint):
+      Promise<Witness<Buffer>|null> {
     const currentSnapshot: MerklePatriciaTree[]|MerklePatriciaTree =
         this._activeSnapshots.get(this._highestBlockNumber);
     let state;
@@ -425,8 +431,7 @@ export class StorageNode implements Storage {
     return ret;
   }
 
-  getCode(address: Buffer, codeOnly: boolean):
-      {code: Buffer|undefined, account: Witness<Buffer>|undefined} {
+  async getCode(address: Buffer, codeOnly: boolean): Promise<GetCodeReply> {
     const currentSnapshot: MerklePatriciaTree =
         this._activeSnapshots.get(this._highestBlockNumber);
     let state;

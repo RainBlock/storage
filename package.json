@@ -1,6 +1,6 @@
 {
   "name": "rainblock-storage",
-  "version": "v2.0.0",
+  "version": "v3.0.0",
   "description": "Storage layer for the ethereum blockrain project",
   "main": "build/index.js",
   "scripts": {
@@ -9,7 +9,6 @@
     "coveralls": "npm run coverage && coveralls <coverage/lcov.info",
     "lint": "gts check",
     "test:node": "mocha -r ts-node/register src/**/*.spec.ts --timeout 40000",
-    "benchmark": "node -r ts-node/register src/index.bench.ts",
     "typedoc": "typedoc --out docs $(pwd)/src --target esnext --mode file --tsconfig ./tsconfig.json --excludePrivate --excludeProtected --excludeNotExported --exclude '**/*+(spec|bench).ts'",
     "check": "gts check",
     "clean": "gts clean",
@@ -17,7 +16,7 @@
     "fix": "gts fix",
     "pretest": "npm run compile",
     "posttest": "npm run check",
-    "start": "node -r ts-node/register src/index.ts",
+    "start": "node -r ts-node/register src/server.ts -1 50051",
     "prepare": "npm run compile"
   },
   "author": {
