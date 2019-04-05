@@ -214,6 +214,4 @@ describe('Client <-> storage functions', async () => {
   });
 });
 
-describe('TODO: Verifier <-> storage', async () => {
-  console.log('TODO: Verifier <-> storage tests');
-});
+describe('TODO: Verifier <-> storage', async () => {});
