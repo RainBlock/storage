@@ -1,5 +1,5 @@
 import {decodeBlock, EthereumBlock} from '@rainblock/ethereum-block';
-import {BatchPut, BranchNode, CachedMerklePatriciaTree, MerklePatriciaTree, MerklePatriciaTreeNode, MerklePatriciaTreeOptions, RlpWitness, verifyWitness, Witness} from '@rainblock/merkle-patricia-tree';
+import {BatchPut, BranchNode, CachedMerklePatriciaTree, MerklePatriciaTree, MerklePatriciaTreeNode, MerklePatriciaTreeOptions, Witness} from '@rainblock/merkle-patricia-tree';
 import {toBigIntBE, toBufferBE} from 'bigint-buffer';
 import {hashAsBigInt, hashAsBuffer, HashType} from 'bigint-hash';
 import * as fs from 'fs-extra';
@@ -20,7 +20,7 @@ export interface Storage {
   };
   getStorage: (address: Buffer, key: bigint) => Witness<Buffer>| null;
   putGenesis: (genesisJSON?: string, genesisBIN?: string) => void;
-  update: (block: RlpList, putOps: UpdateOps) => void;
+  update: (block: RlpList, putOps: UpdateOps[]) => void;
   getRecentBlocks: () => Array<bigint>;
 }
 
@@ -56,6 +56,8 @@ export class StorageNode implements Storage {
   _InternalStorage = new Map<bigint, MerklePatriciaTree>();
 
   _CodeStorage = new Map<bigint, Buffer>();
+
+  EMPTY_CODE_HASH = hashAsBigInt(HashType.KECCAK256, Buffer.from(''));
 
   constructor(shard?: number, genesisJSON?: string, genesisBIN?: string) {
     const date = new Date().toISOString().replace(/T/, ' ').replace(/\..+/, '');
@@ -112,7 +114,7 @@ export class StorageNode implements Storage {
     return root;
   }
 
-  putGenesis(genesisJSON?: string, genesisBIN?: string) {
+  async putGenesis(genesisJSON?: string, genesisBIN?: string) {
     if (!this.isEmpty()) {
       throw new Error('Invalid: putGenesis when blockchain not empty');
     }
@@ -141,7 +143,7 @@ export class StorageNode implements Storage {
         ((!genesisBIN) ? __dirname + '/test_data/genesis.bin' :
                          __dirname + '/' + genesisBIN));
     const rlpGenesis = RlpDecode(data) as RlpList;
-    const genesis = decodeBlock(rlpGenesis);
+    const genesis = await decodeBlock(rlpGenesis);
 
     const blockNum = genesis.header.blockNumber;
     const blockHash = computeBlockHash(rlpGenesis);
@@ -175,46 +177,47 @@ export class StorageNode implements Storage {
     }
   }
 
-  private persist(block: RlpList, putOps: UpdateOps) {
+  private persist(block: RlpList, putOps: UpdateOps[]) {
     this._logFile.write(RlpEncode(block));
     this._logFile.write('\n#\n');
-    for (const put of putOps.ops) {
-      this._logFile.write(put.type + ': ');
-      if (put.type === 'CreationOp') {
-        let op = '';
-        op += put.account.toString('hex') + ' ';
-        op += put.value.toString(16) + ' ';
-        for (const [key, value] of put.storage.entries()) {
-          op += '[' + key.toString(16) + ', ' + value.toString(16) + '] ';
-        }
-        this._logFile.write(op);
+    for (const put of putOps) {
+      // this._logFile.write(put.type + ': ');
+      // if (put.type === 'CreationOp') {
+      //   let op = '';
+      //   op += put.account.toString('hex') + ' ';
+      //   op += put.value.toString(16) + ' ';
+      //   for (const [key, value] of put.storage.entries()) {
+      //     op += '[' + key.toString(16) + ', ' + value.toString(16) + '] ';
+      //   }
+      //   this._logFile.write(op);
 
-      } else if (put.type === 'DeletionOp') {
-        const op = put.account.toString('hex');
-        this._logFile.write(op);
+      // } else if (put.type === 'DeletionOp') {
+      //   const op = put.account.toString('hex');
+      //   this._logFile.write(op);
 
-      } else if (put.type === 'ExecutionOp') {
-        let op = '';
-        op += put.account.toString('hex') + ' ';
-        op += put.value.toString(16) + ' ';
-        for (const sop of put.storageUpdates) {
-          if (sop.type === 'StorageInsertion') {
-            op +=
-                '[' + sop.key.toString(16) + ', ' + sop.val.toString(16) + '] ';
-          } else if (sop.type === 'StorageDeletion') {
-            op += '[' + sop.key.toString(16) + '] ';
-          }
-        }
-        this._logFile.write(op);
+      // } else if (put.type === 'ExecutionOp') {
+      //   let op = '';
+      //   op += put.account.toString('hex') + ' ';
+      //   op += put.value.toString(16) + ' ';
+      //   for (const sop of put.storageUpdates) {
+      //     if (sop.type === 'StorageInsertion') {
+      //       op +=
+      //           '[' + sop.key.toString(16) + ', ' + sop.val.toString(16) + ']
+      //           ';
+      //     } else if (sop.type === 'StorageDeletion') {
+      //       op += '[' + sop.key.toString(16) + '] ';
+      //     }
+      //   }
+      //   this._logFile.write(op);
 
-      } else if (put.type === 'ValueChangeOp') {
-        let op = '';
-        op += put.account.toString('hex') + ' ';
-        op += put.value.toString(16) + ' ';
-        op += put.changes.toString(16);
-        this._logFile.write(op);
-      }
-      this._logFile.write('\n#\n');
+      // } else if (put.type === 'ValueChangeOp') {
+      //   let op = '';
+      //   op += put.account.toString('hex') + ' ';
+      //   op += put.value.toString(16) + ' ';
+      //   op += put.changes.toString(16);
+      //   this._logFile.write(op);
+      // }
+      // this._logFile.write('\n#\n');
     }
   }
 
@@ -225,9 +228,10 @@ export class StorageNode implements Storage {
     return false;
   }
 
-  update(rlpBlock: RlpList, putOps: UpdateOps, merkleNodes?: Buffer) {
+  async update(
+      rlpBlock: RlpList, updateOps: UpdateOps[], merkleNodes?: Buffer) {
     this.gc();
-    const block: EthereumBlock = decodeBlock(rlpBlock);
+    const block: EthereumBlock = await decodeBlock(rlpBlock);
     this.verifyPOW(rlpBlock);
     const parentHash = block.header.parentHash;
     const parentState: MerklePatriciaTree =
@@ -236,74 +240,87 @@ export class StorageNode implements Storage {
       throw new Error('Cannot find parent state');
     }
 
-    const delOps = [], updateOps: Array<BatchPut<Buffer, Buffer>> = [];
-    for (const put of putOps.ops) {
+    const delOps: Buffer[] = [], putOps: Array<BatchPut<Buffer, Buffer>> = [];
+
+    for (const put of updateOps) {
       if (!this.belongsInShard(put.account)) {
         continue;
       }
 
-      if (put.type === 'CreationOp') {
-        let codeHash;
-        if (put.code !== undefined) {
-          codeHash = hashAsBigInt(HashType.KECCAK256, put.code);
-          this._CodeStorage.set(codeHash, put.code);
-        } else {
-          codeHash = hashAsBigInt(HashType.KECCAK256, Buffer.from(''));
-        }
-        const internalTrie = new MerklePatriciaTree({putCanDelete: false});
-        const puts: Array<BatchPut<Buffer, Buffer>> = [];
-        put.storage.forEach((key, value, map) => {
-          puts.push({
-            key: hashAsBuffer(HashType.KECCAK256, toBufferBE(key, 20)),
-            val: toBufferBE(key, 20)
-          });
-        });
-        const storageRoot = this._updateStorageTrie(puts, [], internalTrie);
-        const balance = put.value;
-        const nonce = BigInt(0);
-        const account:
-            EthereumAccount = {balance, nonce, storageRoot, codeHash};
-        updateOps.push({key: put.account, val: ethereumAccountToRlp(account)});
-
-      } else if (put.type === 'DeletionOp') {
+      // First handle deletion
+      if (put.deleted === true) {
         delOps.push(put.account);
-
-      } else if (put.type === 'ValueChangeOp') {
-        const val = parentState.get(put.account).value;
-        if (!val) {
-          throw new Error('Attempt to update a non-existent value');
-        }
-        const account = rlpToEthereumAccount(RlpDecode(val!) as RlpList);
-        account.nonce += BigInt(put.changes);
-        account.balance = put.value;
-        updateOps.push({key: put.account, val: ethereumAccountToRlp(account)});
-
-      } else if (put.type === 'ExecutionOp') {
-        const val = parentState.get(put.account).value;
-        if (!val) {
-          throw new Error('Attempt to update a non-existent value');
-        }
-        const account = rlpToEthereumAccount(RlpDecode(val!) as RlpList);
-        account.balance = put.value;
-        const storage = this._InternalStorage.get(account.storageRoot);
-        const puts: Array<BatchPut<Buffer, Buffer>> = [], dels = [];
-        for (const op of put.storageUpdates) {
-          if (op.type === 'StorageInsertion') {
-            puts.push({
-              key: hashAsBuffer(HashType.KECCAK256, toBufferBE(op.key, 20)),
-              val: toBufferBE(op.val, 20)
-            });
-          } else if (op.type === 'StorageDeletion') {
-            dels.push(hashAsBuffer(HashType.KECCAK256, toBufferBE(op.key, 20)));
+      } else {
+        const oldValue = parentState.get(put.account).value;
+        if (oldValue === null) {
+          // Create new account and insert into batchOps
+          let codeHash;
+          if (put.code) {
+            codeHash = hashAsBigInt(HashType.KECCAK256, put.code);
+            this._CodeStorage.set(codeHash, put.code);
+          } else {
+            codeHash = this.EMPTY_CODE_HASH;
           }
+          const internalTrie = new MerklePatriciaTree({putCanDelete: false});
+          const sPuts: Array<BatchPut<Buffer, Buffer>> = [];
+          const sDels: Buffer[] = [];
+          for (const sput of put.storage) {
+            if (sput.value === BigInt(0)) {
+              continue;
+            }
+            sPuts.push({
+              key: hashAsBuffer(HashType.KECCAK256, toBufferBE(sput.key, 20)),
+              val: toBufferBE(sput.value, 20)
+            });
+          }
+          const storageRoot = this._updateStorageTrie(sPuts, [], internalTrie);
+          const newAccount: EthereumAccount =
+              {balance: put.balance, nonce: put.updates, storageRoot, codeHash};
+          putOps.push(
+              {key: put.account, val: ethereumAccountToRlp(newAccount)});
+        } else {
+          // Update account and insert into batchOps
+          const oldAccount =
+              rlpToEthereumAccount(RlpDecode(oldValue) as RlpList);
+          if (put.balance) {
+            oldAccount.balance = put.balance;
+          }
+          if (put.updates) {
+            oldAccount.nonce += put.updates;
+          }
+          if (put.code) {
+            throw new Error('Account exists; code can\'t be changed');
+          }
+          if (put.storage.length !== 0) {
+            const oldStorageRoot = oldAccount.storageRoot;
+            const internalTrie = this._InternalStorage.get(oldStorageRoot);
+            if (!internalTrie) {
+              throw new Error('Can\'t find storage for account');
+            }
+            const sPuts: Array<BatchPut<Buffer, Buffer>> = [],
+                                                sDels: Buffer[] = [];
+            for (const sop of put.storage) {
+              if (sop.value === BigInt(0)) {
+                sDels.push(
+                    hashAsBuffer(HashType.KECCAK256, toBufferBE(sop.key, 20)));
+              } else {
+                sPuts.push({
+                  key:
+                      hashAsBuffer(HashType.KECCAK256, toBufferBE(sop.key, 20)),
+                  val: toBufferBE(sop.value, 20)
+                });
+              }
+            }
+            const newStorageRoot =
+                this._updateStorageTrie(sPuts, sDels, internalTrie!);
+            oldAccount.storageRoot = newStorageRoot;
+          }
+          putOps.push(
+              {key: put.account, val: ethereumAccountToRlp(oldAccount)});
         }
-        const storageRoot = this._updateStorageTrie(puts, dels, storage!);
-        account.storageRoot = storageRoot;
-        updateOps.push({key: put.account, val: ethereumAccountToRlp(account)});
       }
     }
-
-    const trie = parentState.batchCOW(updateOps, delOps);
+    const trie = parentState.batchCOW(putOps, delOps);
     const root = trie.root;
     if (merkleNodes && merkleNodes.length === 1) {
       this._checkRoots(root, block.header.stateRoot, merkleNodes);
@@ -313,7 +330,7 @@ export class StorageNode implements Storage {
     this._blockchain.set(blockHash, [block, trie]);
     this._blockNumberToHash.set(blockNum, blockHash);
     this._activeSnapshots.set(blockNum, trie);
-    this.persist(rlpBlock, putOps);
+    this.persist(rlpBlock, updateOps);
     this._highestBlockNumber = (this._highestBlockNumber > blockNum) ?
         this._highestBlockNumber :
         blockNum;

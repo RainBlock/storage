@@ -119,43 +119,15 @@ async function _getStateFromGethJSON(filename: string, compressed = false) {
 }
 
 export interface UpdateOps {
-  ops: Array<ValueChangeOp|DeletionOp|CreationOp|ExecutionOp>;
-}
-
-export interface ValueChangeOp {
-  type: 'ValueChangeOp';
   account: Buffer;
-  value: bigint;
-  changes: number;
+  balance: bigint;
+  updates: bigint;
+  storage: StorageUpdates[];
+  code: Buffer;
+  deleted: boolean;
 }
 
-export interface DeletionOp {
-  type: 'DeletionOp';
-  account: Buffer;
-}
-
-export interface CreationOp {
-  type: 'CreationOp';
-  account: Buffer;
-  value: bigint;
-  code?: Buffer;
-  storage: Map<bigint, bigint>;
-}
-
-export interface ExecutionOp {
-  type: 'ExecutionOp';
-  account: Buffer;
-  value: bigint;
-  storageUpdates: Array<StorageDeletion|StorageInsertion>;
-}
-
-export interface StorageInsertion {
-  type: 'StorageInsertion';
+export interface StorageUpdates {
   key: bigint;
-  val: bigint;
-}
-
-export interface StorageDeletion {
-  type: 'StorageDeletion';
-  key: bigint;
+  value: bigint;
 }
