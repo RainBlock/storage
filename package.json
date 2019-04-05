@@ -17,7 +17,8 @@
     "fix": "gts fix",
     "pretest": "npm run compile",
     "posttest": "npm run check",
-    "start": "node -r ts-node/register src/index.ts"
+    "start": "node -r ts-node/register src/index.ts",
+    "prepare": "npm run compile"
   },
   "author": {
     "name": "soujanya",
