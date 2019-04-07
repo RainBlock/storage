@@ -279,7 +279,7 @@ export class StorageNode implements Storage {
           }
           const storageRoot = this._updateStorageTrie(sPuts, [], internalTrie);
           const newAccount: EthereumAccount =
-              {balance: put.balance, nonce: put.updates, storageRoot, codeHash};
+              {balance: put.balance, nonce: put.nonce, storageRoot, codeHash};
           putOps.push(
               {key: put.account, val: ethereumAccountToRlp(newAccount)});
         } else {
@@ -289,8 +289,8 @@ export class StorageNode implements Storage {
           if (put.balance) {
             oldAccount.balance = put.balance;
           }
-          if (put.updates) {
-            oldAccount.nonce += put.updates;
+          if (put.nonce) {
+            oldAccount.nonce = put.nonce;
           }
           if (put.code) {
             const codeHash = hashAsBigInt(HashType.KECCAK256, put.code);

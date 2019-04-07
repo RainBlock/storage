@@ -165,7 +165,7 @@ const update = async (
     const op: utils.UpdateOps = {
       account: Buffer.from(item.getAccount_asU8()),
       balance: toBigIntBE(Buffer.from(item.getBalance_asU8())),
-      updates: BigInt(item.getUpdates()),
+      nonce: BigInt(item.getNonce()),
       code: Buffer.from(item.getCode_asU8()),
       storage,
       deleted: item.getDeleted(),

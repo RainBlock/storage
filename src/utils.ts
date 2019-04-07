@@ -121,7 +121,7 @@ async function _getStateFromGethJSON(filename: string, compressed = false) {
 export interface UpdateOps {
   account: Buffer;
   balance: bigint;
-  updates: bigint;
+  nonce: bigint;
   storage: StorageUpdates[];
   code: Buffer;
   deleted: boolean;
