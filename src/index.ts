@@ -181,48 +181,20 @@ export class StorageNode implements Storage {
     }
   }
 
-  private async persist(block: RlpList, putOps: UpdateOps[]) {
+  // TODO: logFile per shard?
+  private async persist(
+      block: RlpList, putOps: Array<BatchPut<Buffer, Buffer>>,
+      delOps: Buffer[]) {
     this._logFile.write(RlpEncode(block));
     this._logFile.write('\n#\n');
+    const puts: Buffer[] = [];
     for (const put of putOps) {
-      // this._logFile.write(put.type + ': ');
-      // if (put.type === 'CreationOp') {
-      //   let op = '';
-      //   op += put.account.toString('hex') + ' ';
-      //   op += put.value.toString(16) + ' ';
-      //   for (const [key, value] of put.storage.entries()) {
-      //     op += '[' + key.toString(16) + ', ' + value.toString(16) + '] ';
-      //   }
-      //   this._logFile.write(op);
-
-      // } else if (put.type === 'DeletionOp') {
-      //   const op = put.account.toString('hex');
-      //   this._logFile.write(op);
-
-      // } else if (put.type === 'ExecutionOp') {
-      //   let op = '';
-      //   op += put.account.toString('hex') + ' ';
-      //   op += put.value.toString(16) + ' ';
-      //   for (const sop of put.storageUpdates) {
-      //     if (sop.type === 'StorageInsertion') {
-      //       op +=
-      //           '[' + sop.key.toString(16) + ', ' + sop.val.toString(16) + ']
-      //           ';
-      //     } else if (sop.type === 'StorageDeletion') {
-      //       op += '[' + sop.key.toString(16) + '] ';
-      //     }
-      //   }
-      //   this._logFile.write(op);
-
-      // } else if (put.type === 'ValueChangeOp') {
-      //   let op = '';
-      //   op += put.account.toString('hex') + ' ';
-      //   op += put.value.toString(16) + ' ';
-      //   op += put.changes.toString(16);
-      //   this._logFile.write(op);
-      // }
-      // this._logFile.write('\n#\n');
+      puts.push(put.key);
+      puts.push(put.val);
     }
+    this._logFile.write(RlpEncode(puts));
+    this._logFile.write(RlpEncode(delOps));
+    this._logFile.write('\n#\n');
   }
 
   private belongsInShard(account: Buffer): boolean {
@@ -250,15 +222,12 @@ export class StorageNode implements Storage {
       if (!this.belongsInShard(put.account)) {
         continue;
       }
-
-      // First handle deletion
       if (put.deleted === true) {
         delOps.push(put.account);
       } else {
         const oldValue = parentState.get(put.account).value;
         if (oldValue === null) {
-          // Create new account and insert into batchOps
-          let codeHash;
+          let codeHash: bigint, storageRoot: bigint;
           if (put.code) {
             codeHash = hashAsBigInt(HashType.KECCAK256, put.code);
             this._CodeStorage.set(codeHash, put.code);
@@ -267,23 +236,27 @@ export class StorageNode implements Storage {
           }
           const internalTrie = new MerklePatriciaTree({putCanDelete: false});
           const sPuts: Array<BatchPut<Buffer, Buffer>> = [];
-          const sDels: Buffer[] = [];
-          for (const sput of put.storage) {
-            if (sput.value === BigInt(0)) {
-              continue;
+          if (put.storage) {
+            for (const sput of put.storage) {
+              if (sput.value === BigInt(0)) {
+                continue;
+              }
+              sPuts.push({
+                key: hashAsBuffer(HashType.KECCAK256, toBufferBE(sput.key, 20)),
+                val: toBufferBE(sput.value, 20)
+              });
             }
-            sPuts.push({
-              key: hashAsBuffer(HashType.KECCAK256, toBufferBE(sput.key, 20)),
-              val: toBufferBE(sput.value, 20)
-            });
+            storageRoot = this._updateStorageTrie(sPuts, [], internalTrie);
+          } else {
+            storageRoot = toBigIntBE(internalTrie.root);
           }
-          const storageRoot = this._updateStorageTrie(sPuts, [], internalTrie);
-          const newAccount: EthereumAccount =
-              {balance: put.balance, nonce: put.nonce, storageRoot, codeHash};
+          const balance: bigint = put.balance!;
+          const nonce: bigint = (put.nonce) ? put.nonce : 0n;
+          const newAccount:
+              EthereumAccount = {balance, nonce, storageRoot, codeHash};
           putOps.push(
               {key: put.account, val: ethereumAccountToRlp(newAccount)});
         } else {
-          // Update account and insert into batchOps
           const oldAccount =
               rlpToEthereumAccount(RlpDecode(oldValue) as RlpList);
           if (put.balance) {
@@ -297,14 +270,14 @@ export class StorageNode implements Storage {
             this._CodeStorage.set(codeHash, put.code);
             oldAccount.codeHash = codeHash;
           }
-          if (put.storage.length !== 0) {
+          if (put.storage && put.storage.length !== 0) {
             const oldStorageRoot = oldAccount.storageRoot;
             const internalTrie = this._InternalStorage.get(oldStorageRoot);
             if (!internalTrie) {
               throw new Error('Can\'t find storage for account');
             }
-            const sPuts: Array<BatchPut<Buffer, Buffer>> = [],
-                                                sDels: Buffer[] = [];
+            const sPuts: Array<BatchPut<Buffer, Buffer>> = [];
+            const sDels: Buffer[] = [];
             for (const sop of put.storage) {
               if (sop.value === BigInt(0)) {
                 sDels.push(
@@ -336,7 +309,7 @@ export class StorageNode implements Storage {
     this._blockchain.set(blockHash, [block, trie]);
     this._blockNumberToHash.set(blockNum, blockHash);
     this._activeSnapshots.set(blockNum, trie);
-    this.persist(rlpBlock, updateOps);
+    this.persist(rlpBlock, putOps, delOps);
     this._highestBlockNumber = (this._highestBlockNumber > blockNum) ?
         this._highestBlockNumber :
         blockNum;

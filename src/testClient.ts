@@ -16,7 +16,7 @@ const assertEquals = (n0: bigint, n1: bigint) => {
   }
 };
 
-const testGetCodeInfo = (client: StorageNodeClient) => {
+const testGetCodeInfo = async (client: StorageNodeClient) => {
   // Test getCodeInfo of existing account with code only set to false;
   const addr = Buffer.from('000d836201318ec6899a67540690382780743280', 'hex');
   const correctAccount: EthereumAccount = {
@@ -144,7 +144,7 @@ const testGetCodeInfo = (client: StorageNodeClient) => {
   });
 };
 
-const testGetAccount = (client: StorageNodeClient) => {
+const testGetAccount = async (client: StorageNodeClient) => {
   const address =
       Buffer.from('000d836201318ec6899a67540690382780743280', 'hex');
   const balance = BigInt(200000000000000000000);
@@ -206,7 +206,7 @@ const testGetAccount = (client: StorageNodeClient) => {
   });
 };
 
-const testGetStorage = (client: StorageNodeClient) => {
+const testGetStorage = async (client: StorageNodeClient) => {
   // Test getStorage of non-existing account
   const noAddress =
       Buffer.from('000abcdefabcdefabcdef0001234567890abcdef', 'hex');
@@ -238,7 +238,7 @@ const testGetStorage = (client: StorageNodeClient) => {
   });
 };
 
-const testGetBlockHash = (client: StorageNodeClient) => {
+const testGetBlockHash = async (client: StorageNodeClient) => {
   const blockInValid = 10;
   const request = new BlockHashRequest();
   request.setNumber(blockInValid);
@@ -263,7 +263,7 @@ const testGetBlockHash = (client: StorageNodeClient) => {
   });
 };
 
-const runTestClient = (host: string, port: string) => {
+const runTestClient = async (host: string, port: string) => {
   const storageSocket = host + ':' + port;
   const client =
       new StorageNodeClient(storageSocket, grpc.credentials.createInsecure());
@@ -275,15 +275,7 @@ const runTestClient = (host: string, port: string) => {
   testGetBlockHash(client);
 };
 
-const printUsage = () => {
-  console.log('USAGE: node -r ts-node/register src/testClient.ts');
-  process.exit(-1);
-};
-
 const callClient = () => {
-  if (process.argv.length !== 2) {
-    printUsage();
-  }
   // For local testing
   process.env.SNODES = 'localhost:50051';
   const snodes = process.env.SNODES;

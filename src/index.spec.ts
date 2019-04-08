@@ -8,7 +8,7 @@ import {RlpDecode, RlpDecoderTransform, RlpList} from 'rlp-stream';
 import {Readable} from 'stream';
 
 import {StorageNode} from './index';
-import {computeBlockHash, ethereumAccountToRlp, rlpToEthereumAccount, UpdateOps} from './utils';
+import {computeBlockHash, ethereumAccountToRlp, rlpToEthereumAccount, StorageUpdates, UpdateOps} from './utils';
 
 const asyncChunks = require('async-chunks');
 const fs = process.browser ? undefined : require('fs-extra');
@@ -21,6 +21,7 @@ chai.should();
 
 const BLOCK_FIRST10 = 'test_data/first10.bin';
 const snode = new StorageNode(-1);
+const rlpBlocks: RlpList[] = [];
 
 const loadStream = async (filename: string) => {
   const decoder = new RlpDecoderTransform();
@@ -49,8 +50,6 @@ const assertEquals = (n0: BigInt, n1: BigInt) => {
 };
 
 describe('Utility functions', async () => {
-  const rlpBlocks: RlpList[] = [];
-
   before(async () => {
     for await (const chunk of asyncChunks(await loadStream(BLOCK_FIRST10))) {
       rlpBlocks.push(chunk);
@@ -214,11 +213,130 @@ describe('Client <-> storage functions', async () => {
   });
 });
 
-describe('TODO: Verifier <-> storage', async () => {
-  it('Create: Should be able to create new accounts', async () => {});
+describe('Verifier <-> storage functions', async () => {
+  const codeHash: bigint = BigInt(
+      '0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470');
+  const storageRoot = BigInt(
+      '0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421');
+  const address =
+      Buffer.from('0000000000000000000000000000000000000000', 'hex');
 
-  it('Update: Should be able to update existing accounts',
-     async () => {
+  it('Create: Should be able to create new accounts', async () => {
+    const newAccount: UpdateOps = {
+      account: address,
+      balance: 100n,
+      nonce: 10n,
+      code: Buffer.from(''),
+      storage: [],
+      deleted: false
+    };
+    const block = rlpBlocks[1];
+    const updateOps: UpdateOps[] = [newAccount];
+    await snode.update(block, updateOps);
+    const ret = await snode.get(address);
+    should.exist(ret.value);
+    if (ret) {
+      const account = rlpToEthereumAccount(RlpDecode(ret.value!) as RlpList);
+      assertEquals(account.balance, 100n);
+      assertEquals(account.nonce, 10n);
+      assertEquals(account.codeHash, codeHash);
+      assertEquals(account.storageRoot, storageRoot);
+    } else {
+      throw new Error('Failed to insert newAccount');
+    }
+  });
 
-     });
+  it('Update: Should update balance of an existing account', async () => {
+    const block = rlpBlocks[2];
+    const updateAccount = {account: address, balance: 10000n};
+    const updateOps: UpdateOps[] = [updateAccount];
+    await snode.update(block, updateOps);
+    const ret = await snode.get(address);
+    should.exist(ret.value);
+    if (ret) {
+      const account = rlpToEthereumAccount(RlpDecode(ret.value!) as RlpList);
+      assertEquals(account.balance, 10000n);
+      assertEquals(account.nonce, 10n);
+      assertEquals(account.codeHash, codeHash);
+      assertEquals(account.storageRoot, storageRoot);
+    } else {
+      throw new Error('Failed to insert newAccount');
+    }
+  });
+
+  it('Update: Should update nonce of an existing account', async () => {
+    const block = rlpBlocks[3];
+    const updateAccount = {account: address, nonce: 1000n};
+    const updateOps: UpdateOps[] = [updateAccount];
+    await snode.update(block, updateOps);
+    const ret = await snode.get(address);
+    should.exist(ret.value);
+    if (ret) {
+      const account = rlpToEthereumAccount(RlpDecode(ret.value!) as RlpList);
+      assertEquals(account.balance, 10000n);
+      assertEquals(account.nonce, 1000n);
+      assertEquals(account.codeHash, codeHash);
+    } else {
+      throw new Error('Failed to insert newAccount');
+    }
+  });
+
+  it('Update: Should update storage of an existing account', async () => {
+    const block = rlpBlocks[4];
+    const sKey = toBigIntBE(address);
+    const storageValues: StorageUpdates[] = [{key: sKey, value: sKey}];
+    const updateAccount = {account: address, storage: storageValues};
+    const updateOps: UpdateOps[] = [updateAccount];
+    await snode.update(block, updateOps);
+    const ret = await snode.get(address);
+    const root =
+        39309028074332508661983559455579427211983204215636056653337583610388178777121n;
+    should.exist(ret.value);
+    if (ret) {
+      const account = rlpToEthereumAccount(RlpDecode(ret.value!) as RlpList);
+      assertEquals(account.balance, 10000n);
+      assertEquals(account.nonce, 1000n);
+      assertEquals(account.codeHash, codeHash);
+      assertEquals(account.storageRoot, storageRoot);
+      assertEquals(account.storageRoot, root);
+    } else {
+      throw new Error('Failed to insert newAccount');
+    }
+  });
+
+  it('Update: Should update storage of an existing account', async () => {
+    const block = rlpBlocks[5];
+    const sKey = toBigIntBE(address);
+    const storageValues: StorageUpdates[] = [{key: sKey, value: 0n}];
+    const updateAccount = {account: address, storage: storageValues};
+    const updateOps: UpdateOps[] = [updateAccount];
+    await snode.update(block, updateOps);
+    const ret = await snode.get(address);
+    should.exist(ret.value);
+    if (ret) {
+      const account = rlpToEthereumAccount(RlpDecode(ret.value!) as RlpList);
+      assertEquals(account.balance, 10000n);
+      assertEquals(account.nonce, 1000n);
+      assertEquals(account.codeHash, codeHash);
+      assertEquals(account.storageRoot, storageRoot);
+    } else {
+      throw new Error('Failed to insert newAccount');
+    }
+  });
+
+  it('Update: Should delete an existing account', async () => {
+    const block = rlpBlocks[6];
+    const updateAccount: UpdateOps = {
+      account: address,
+      deleted: true,
+      nonce: 10n,
+      balance: 100n,
+      code: Buffer.from(''),
+      storage: [],
+    };
+    const updateOps: UpdateOps[] = [updateAccount];
+    await snode.update(block, updateOps);
+    const ret = await snode.get(address);
+    should.not.exist(ret.value);
+  });
 });

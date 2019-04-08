@@ -154,7 +154,7 @@ const update = async (
   const opList = call.request.getOperationsList();
   const update: utils.UpdateOps[] = [];
   for (const item of opList) {
-    const storage: utils.StorageUpdates[] = [];
+    const storage: utils.StorageUpdates[]|undefined = [];
     const storageList = item.getStorageUpdateList();
     for (const sop of storageList) {
       storage.push({
@@ -162,13 +162,16 @@ const update = async (
         value: toBigIntBE(Buffer.from(sop.getValue_asU8()))
       });
     }
+    const balance = toBigIntBE(Buffer.from(item.getBalance_asU8()));
+    const nonce = BigInt(item.getNonce());
+    const code = Buffer.from(item.getCode_asU8());
     const op: utils.UpdateOps = {
       account: Buffer.from(item.getAccount_asU8()),
-      balance: toBigIntBE(Buffer.from(item.getBalance_asU8())),
-      nonce: BigInt(item.getNonce()),
-      code: Buffer.from(item.getCode_asU8()),
-      storage,
-      deleted: item.getDeleted(),
+      balance: (balance) ? balance : undefined,
+      nonce: (nonce) ? nonce : undefined,
+      code: (code.length) ? code : undefined,
+      storage: (storage.length) ? storage : undefined,
+      deleted: (item.getDeleted()) ? true : false,
     };
     update.push(op);
   }
@@ -179,15 +182,11 @@ const update = async (
   } else {
     prom = storage.update(rlpBlock, update, merkleNodes);
   }
-  prom.then(
-          (ret) => {
-
-          })
-      .catch((e) => {
-        console.log('ERROR: update\n', e);
-        callback(e, new Empty());
-        return;
-      });
+  prom.then((ret) => {}).catch((e) => {
+    console.log('ERROR: update\n', e);
+    callback(e, new Empty());
+    return;
+  });
   callback(null, new Empty());
 };
 
