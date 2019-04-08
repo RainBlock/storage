@@ -250,7 +250,7 @@ export class StorageNode implements Storage {
           } else {
             storageRoot = toBigIntBE(internalTrie.root);
           }
-          const balance: bigint = put.balance!;
+          const balance: bigint = (put.balance) ? put.balance : 0n;
           const nonce: bigint = (put.nonce) ? put.nonce : 0n;
           const newAccount:
               EthereumAccount = {balance, nonce, storageRoot, codeHash};
@@ -301,7 +301,7 @@ export class StorageNode implements Storage {
     }
     const trie = parentState.batchCOW(putOps, delOps);
     const root = trie.root;
-    if (merkleNodes && merkleNodes.length === 1) {
+    if (merkleNodes) {
       this._checkRoots(root, block.header.stateRoot, merkleNodes);
     }
     const blockNum = block.header.blockNumber;

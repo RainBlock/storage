@@ -44,7 +44,7 @@ export interface GethPutOps {
 }
 
 export function ethereumAccountToRlp(account: EthereumAccount): Buffer {
-  let hexBalance = account.balance.toString(16);
+  let hexBalance = account.balance!.toString(16);
   if (hexBalance === '0') {
     hexBalance = '';
   } else if (hexBalance.length % 2 === 1) {
