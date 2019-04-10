@@ -56,7 +56,7 @@ export class StorageNode implements Storage {
 
   _highestBlockNumber = -1n;
 
-  _InternalStorage = new Map<bigint, MerklePatriciaTree>();
+  _InternalStorage = new Map<bigint, MerklePatriciaTree<bigint, Buffer>>();
 
   _CodeStorage = new Map<bigint, Buffer>();
 
@@ -97,10 +97,13 @@ export class StorageNode implements Storage {
       storage: GethStateDumpAccount['storage'], root: string, codeHash: string,
       code: string) {
     const storageEntries = Object.entries(storage);
-    const internalTrie = new MerklePatriciaTree({putCanDelete: false});
+    const internalTrie = new MerklePatriciaTree<bigint, Buffer>({
+      keyConverter: k => hashAsBuffer(HashType.KECCAK256, toBufferBE(k, 20)),
+      putCanDelete: false
+    });
     if (storageEntries.length > 0) {
       for (const [key, value] of storageEntries) {
-        const k = hashAsBuffer(HashType.KECCAK256, Buffer.from(key, 'hex'));
+        const k = BigInt(`0x${key}`);
         const v = Buffer.from(value, 'hex');
         internalTrie.put(k, v);
       }
@@ -112,8 +115,8 @@ export class StorageNode implements Storage {
   }
 
   private _updateStorageTrie(
-      puts: Array<BatchPut<Buffer, Buffer>>, dels: Buffer[],
-      internalTrie: MerklePatriciaTree): bigint {
+      puts: Array<BatchPut<bigint, Buffer>>, dels: Array<bigint>,
+      internalTrie: MerklePatriciaTree<bigint, Buffer>): bigint {
     const newTrie = internalTrie.batchCOW(puts, dels);
     const root = toBigIntBE(newTrie.root);
     this._InternalStorage.set(root, newTrie);
@@ -225,17 +228,18 @@ export class StorageNode implements Storage {
           } else {
             codeHash = this.EMPTY_CODE_HASH;
           }
-          const internalTrie = new MerklePatriciaTree({putCanDelete: false});
-          const sPuts: Array<BatchPut<Buffer, Buffer>> = [];
+          const internalTrie = new MerklePatriciaTree<bigint, Buffer>({
+            keyConverter: k =>
+                hashAsBuffer(HashType.KECCAK256, toBufferBE(k, 20)),
+            putCanDelete: false
+          });
+          const sPuts: Array<BatchPut<bigint, Buffer>> = [];
           if (put.storage) {
             for (const sput of put.storage) {
               if (sput.value === BigInt(0)) {
                 continue;
               }
-              sPuts.push({
-                key: hashAsBuffer(HashType.KECCAK256, toBufferBE(sput.key, 20)),
-                val: toBufferBE(sput.value, 20)
-              });
+              sPuts.push({key: sput.key, val: toBufferBE(sput.value, 20)});
             }
             storageRoot = this._updateStorageTrie(sPuts, [], internalTrie);
           } else {
@@ -263,22 +267,21 @@ export class StorageNode implements Storage {
           }
           if (put.storage && put.storage.length !== 0) {
             const oldStorageRoot = oldAccount.storageRoot;
-            const internalTrie = this._InternalStorage.get(oldStorageRoot);
+            let internalTrie = this._InternalStorage.get(oldStorageRoot);
             if (!internalTrie) {
-              throw new Error('Can\'t find storage for account');
+              internalTrie = new MerklePatriciaTree<bigint, Buffer>({
+                keyConverter: k =>
+                    hashAsBuffer(HashType.KECCAK256, toBufferBE(k, 20)),
+                putCanDelete: false
+              });
             }
-            const sPuts: Array<BatchPut<Buffer, Buffer>> = [];
-            const sDels: Buffer[] = [];
+            const sPuts: Array<BatchPut<bigint, Buffer>> = [];
+            const sDels: Array<bigint> = [];
             for (const sop of put.storage) {
               if (sop.value === BigInt(0)) {
-                sDels.push(
-                    hashAsBuffer(HashType.KECCAK256, toBufferBE(sop.key, 20)));
+                sDels.push(sop.key);
               } else {
-                sPuts.push({
-                  key:
-                      hashAsBuffer(HashType.KECCAK256, toBufferBE(sop.key, 20)),
-                  val: toBufferBE(sop.value, 20)
-                });
+                sPuts.push({key: sop.key, val: toBufferBE(sop.value, 20)});
               }
             }
             const newStorageRoot =
@@ -323,7 +326,7 @@ export class StorageNode implements Storage {
     let branchIdx = 0;
     if (rootNode instanceof BranchNode) {
       for (const branch of rootNode.branches) {
-        if(branch) {
+        if (branch) {
           merkleHashes[branchIdx] = toBufferBE(
               branch.hash({} as MerklePatriciaTreeOptions<{}, Buffer>), 32);
         }
@@ -397,8 +400,7 @@ export class StorageNode implements Storage {
     if (!storageTrie) {
       throw new Error('No internalStorageTrie with storageRoot');
     }
-    const convKey = hashAsBuffer(HashType.KECCAK256, toBufferBE(key, 20));
-    const ret = storageTrie.get(convKey);
+    const ret = storageTrie.get(key);
     return ret;
   }
 
