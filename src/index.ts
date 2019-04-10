@@ -67,7 +67,10 @@ export class StorageNode implements Storage {
     const filename = ('./logs/' + date + '.log').split(' ').join('');
     this._logFile = fs.createWriteStream(filename, {flags: 'a'});
 
-    this._shard = (shard && shard >= 0 && shard < 16) ? shard : -1;
+    this._shard =
+        (shard !== undefined && shard !== null && shard >= 0 && shard < 16) ?
+        shard :
+        -1;
     this.putGenesis(genesisJSON, genesisBIN);
   }
 
@@ -131,10 +134,8 @@ export class StorageNode implements Storage {
     });
     const batchOps = [];
     for (const put of putOps) {
-      if (this.belongsInShard(put.key)) {
-        const val = gethAccountToEthAccount(put.val);
-        batchOps.push({key: put.key, val: ethereumAccountToRlp(val)});
-      }
+      const val = gethAccountToEthAccount(put.val);
+      batchOps.push({key: put.key, val: ethereumAccountToRlp(val)});
     }
     trie.batch(batchOps, []);
     for (const put of putOps) {
@@ -197,13 +198,6 @@ export class StorageNode implements Storage {
     this._logFile.write('\n#\n');
   }
 
-  private belongsInShard(account: Buffer): boolean {
-    if ((this._shard === -1) || (Math.floor(account[0] / 16) === this._shard)) {
-      return true;
-    }
-    return false;
-  }
-
   async update(
       rlpBlock: RlpList, updateOps: UpdateOps[], merkleNodes?: Buffer) {
     this.gc();
@@ -219,9 +213,6 @@ export class StorageNode implements Storage {
     const delOps: Buffer[] = [], putOps: Array<BatchPut<Buffer, Buffer>> = [];
 
     for (const put of updateOps) {
-      if (!this.belongsInShard(put.account)) {
-        continue;
-      }
       if (put.deleted === true) {
         delOps.push(put.account);
       } else {
@@ -300,8 +291,16 @@ export class StorageNode implements Storage {
       }
     }
     const trie = parentState.batchCOW(putOps, delOps);
-    const root = trie.root;
-    if (merkleNodes) {
+    if (merkleNodes && this._shard === -1) {
+      const root = toBigIntBE(trie.root);
+      if (root !== block.header.stateRoot) {
+        throw new Error('stateRoot and blockStateRoot don\'t match');
+      }
+    } else if (merkleNodes && trie.rootNode instanceof BranchNode) {
+      const root = toBufferBE(
+          (trie.rootNode.branches[this._shard])!.hash(
+              trie.options as MerklePatriciaTreeOptions<{}, Buffer>),
+          32);
       this._checkRoots(root, block.header.stateRoot, merkleNodes);
     }
     const blockNum = block.header.blockNumber;
@@ -324,12 +323,10 @@ export class StorageNode implements Storage {
     let branchIdx = 0;
     if (rootNode instanceof BranchNode) {
       for (const branch of rootNode.branches) {
-        if (!branch) {
-          branchIdx += 1;
-          continue;
+        if(branch) {
+          merkleHashes[branchIdx] = toBufferBE(
+              branch.hash({} as MerklePatriciaTreeOptions<{}, Buffer>), 32);
         }
-        merkleHashes[branchIdx] = toBufferBE(
-            branch.hash({} as MerklePatriciaTreeOptions<{}, Buffer>), 32);
         branchIdx += 1;
       }
     }
@@ -341,8 +338,7 @@ export class StorageNode implements Storage {
 
     const rHash = hashAsBigInt(HashType.KECCAK256, RlpEncode(merkleHashes));
     if (rHash !== bRoot) {
-      throw new Error(
-          'sharded stateRoots don\'t has to block\'s global stateRoot');
+      throw new Error('shardedStateRoots dont hash to blockStateRoot');
     }
   }
 
