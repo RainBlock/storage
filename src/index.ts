@@ -296,16 +296,20 @@ export class StorageNode implements Storage {
     const trie = parentState.batchCOW(putOps, delOps);
     if (merkleNodes && this._shard === -1) {
       const root = toBigIntBE(trie.root);
-      if (root !== block.header.stateRoot) {
-        throw new Error('stateRoot and blockStateRoot don\'t match');
+      const merkleRoot = hashAsBigInt(HashType.KECCAK256, merkleNodes);
+      if (root !== block.header.stateRoot || merkleRoot !== root) {
+        throw new Error('stateRoot and blockStateRoot dont match');
       }
     } else if (merkleNodes && trie.rootNode instanceof BranchNode) {
-      const root = toBufferBE(
-          (trie.rootNode.branches[this._shard])!.hash(
-              trie.options as MerklePatriciaTreeOptions<{}, Buffer>),
-          32);
-      this._checkRoots(root, block.header.stateRoot, merkleNodes);
+      const merkleRoot = hashAsBigInt(HashType.KECCAK256, merkleNodes);
+      if (merkleRoot !== block.header.stateRoot) {
+        throw new Error('stateRoot and blockStateRoot dont match');
+      }
+      const root = (trie.rootNode.branches[this._shard])!.hash(
+        {} as MerklePatriciaTreeOptions<{}, Buffer>);
+      this._checkRoots(root, merkleNodes);
     }
+
     const blockNum = block.header.blockNumber;
     const blockHash = computeBlockHash(rlpBlock);
     this._blockchain.set(blockHash, [block, trie]);
@@ -317,32 +321,19 @@ export class StorageNode implements Storage {
         blockNum;
   }
 
-  private async _checkRoots(shRoot: Buffer, bRoot: bigint, rlp: Buffer) {
+  private async _checkRoots(shRoot: bigint, rlp: Buffer) {
     const cache = new CachedMerklePatriciaTree<Buffer, Buffer>();
     const rootNode: MerklePatriciaTreeNode<Buffer> =
-        cache.rlpToMerkleNode(rlp, (val: Buffer) => (val));
+      cache.rlpToMerkleNode(rlp, (val: Buffer) => (val));
 
-    const merkleHashes: Buffer[] = [];
-    let branchIdx = 0;
     if (rootNode instanceof BranchNode) {
-      for (const branch of rootNode.branches) {
-        if (branch) {
-          merkleHashes[branchIdx] = toBufferBE(
-              branch.hash({} as MerklePatriciaTreeOptions<{}, Buffer>), 32);
-        }
-        branchIdx += 1;
+      const merkleBranch = rootNode.branches[this._shard];
+      const branchHash = merkleBranch.hash({} as MerklePatriciaTreeOptions<{}, Buffer>);
+      if (branchHash !== shRoot) {
+        throw new Error('shardedStateRoots dont hash to blockStateRoot');
       }
     }
-    const valHash = (rootNode.value === null) ?
-        Buffer.from([]) :
-        hashAsBuffer(HashType.KECCAK256, rootNode.value);
-    merkleHashes.push(valHash);
-    merkleHashes[this._shard] = shRoot;
-
-    const rHash = hashAsBigInt(HashType.KECCAK256, RlpEncode(merkleHashes));
-    if (rHash !== bRoot) {
-      throw new Error('shardedStateRoots dont hash to blockStateRoot');
-    }
+    console.log(this._shard, "checkRoots passes");
   }
 
   async getRecentBlocks(): Promise<Array<bigint>> {
