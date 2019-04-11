@@ -1,4 +1,8 @@
-image: node:11.11.0
+language: node_js
+
+node_js:
+- node
+- '11.11.0'
 
 cache:
   paths:
