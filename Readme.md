@@ -20,8 +20,9 @@ Usage instructions, run the server with two args shard and port.
 
 > node -r ts-node/register src/server.ts shard port
 
-Shard can be either -1 or any number between 0 to 15.
-If shard is -1, the storage node is a fullNode and a sharded node storing the {shard} otherwise.
+Shard can be either be -1 or any number between 0 and 15 including 0, 15.
+- If shard is -1, the storage node is a fullNode
+- If shard is any number between 0 and 15; storage is sharded and stores {shard}.
 
 Port is the port on the storage server has to run.
 
