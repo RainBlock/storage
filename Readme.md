@@ -1,4 +1,4 @@
-# ☔️🌲📦 RainBlock's Storage Node
+# RainBlock's Storage Node
 
 Storage implements the storage layer for Rainblock.
 
