@@ -44,7 +44,7 @@ export interface GethPutOps {
 }
 
 export function ethereumAccountToRlp(account: EthereumAccount): Buffer {
-  let hexBalance = account.balance.toString(16);
+  let hexBalance = account.balance!.toString(16);
   if (hexBalance === '0') {
     hexBalance = '';
   } else if (hexBalance.length % 2 === 1) {
@@ -119,43 +119,15 @@ async function _getStateFromGethJSON(filename: string, compressed = false) {
 }
 
 export interface UpdateOps {
-  ops: Array<ValueChangeOp|DeletionOp|CreationOp|ExecutionOp>;
-}
-
-export interface ValueChangeOp {
-  type: 'ValueChangeOp';
   account: Buffer;
-  value: bigint;
-  changes: number;
-}
-
-export interface DeletionOp {
-  type: 'DeletionOp';
-  account: Buffer;
-}
-
-export interface CreationOp {
-  type: 'CreationOp';
-  account: Buffer;
-  value: bigint;
+  balance?: bigint;
+  nonce?: bigint;
+  storage?: StorageUpdates[];
   code?: Buffer;
-  storage: Map<bigint, bigint>;
+  deleted?: boolean;
 }
 
-export interface ExecutionOp {
-  type: 'ExecutionOp';
-  account: Buffer;
+export interface StorageUpdates {
+  key: bigint;
   value: bigint;
-  storageUpdates: Array<StorageDeletion|StorageInsertion>;
-}
-
-export interface StorageInsertion {
-  type: 'StorageInsertion';
-  key: bigint;
-  val: bigint;
-}
-
-export interface StorageDeletion {
-  type: 'StorageDeletion';
-  key: bigint;
 }

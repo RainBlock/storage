@@ -1,10 +1,8 @@
+import {AccountRequest, BlockHashRequest, CodeRequest, StorageNodeClient, StorageRequest} from '@rainblock/protocol';
 import {hashAsBigInt, HashType} from 'bigint-hash';
 import * as fs from 'fs-extra';
 import * as grpc from 'grpc';
 import {RlpDecode, RlpList} from 'rlp-stream/build/src/rlp-stream';
-
-import * as StorageNodeService from '../build/proto/clientStorage_grpc_pb';
-import {AccountRequest, BlockHashRequest, CodeRequest, StorageRequest} from '../build/proto/clientStorage_pb';
 
 import {EthereumAccount, rlpToEthereumAccount} from './utils';
 
@@ -18,7 +16,7 @@ const assertEquals = (n0: bigint, n1: bigint) => {
   }
 };
 
-const testGetCodeInfo = (client: StorageNodeService.StorageNodeClient) => {
+const testGetCodeInfo = async (client: StorageNodeClient) => {
   // Test getCodeInfo of existing account with code only set to false;
   const addr = Buffer.from('000d836201318ec6899a67540690382780743280', 'hex');
   const correctAccount: EthereumAccount = {
@@ -146,7 +144,7 @@ const testGetCodeInfo = (client: StorageNodeService.StorageNodeClient) => {
   });
 };
 
-const testGetAccount = (client: StorageNodeService.StorageNodeClient) => {
+const testGetAccount = async (client: StorageNodeClient) => {
   const address =
       Buffer.from('000d836201318ec6899a67540690382780743280', 'hex');
   const balance = BigInt(200000000000000000000);
@@ -208,7 +206,7 @@ const testGetAccount = (client: StorageNodeService.StorageNodeClient) => {
   });
 };
 
-const testGetStorage = (client: StorageNodeService.StorageNodeClient) => {
+const testGetStorage = async (client: StorageNodeClient) => {
   // Test getStorage of non-existing account
   const noAddress =
       Buffer.from('000abcdefabcdefabcdef0001234567890abcdef', 'hex');
@@ -240,7 +238,7 @@ const testGetStorage = (client: StorageNodeService.StorageNodeClient) => {
   });
 };
 
-const testGetBlockHash = (client: StorageNodeService.StorageNodeClient) => {
+const testGetBlockHash = async (client: StorageNodeClient) => {
   const blockInValid = 10;
   const request = new BlockHashRequest();
   request.setNumber(blockInValid);
@@ -265,10 +263,10 @@ const testGetBlockHash = (client: StorageNodeService.StorageNodeClient) => {
   });
 };
 
-const runTestClient = (host: string, port: string) => {
+const runTestClient = async (host: string, port: string) => {
   const storageSocket = host + ':' + port;
-  const client = new StorageNodeService.StorageNodeClient(
-      storageSocket, grpc.credentials.createInsecure());
+  const client =
+      new StorageNodeClient(storageSocket, grpc.credentials.createInsecure());
 
   // Test with RPC calls
   testGetCodeInfo(client);
@@ -277,15 +275,7 @@ const runTestClient = (host: string, port: string) => {
   testGetBlockHash(client);
 };
 
-const printUsage = () => {
-  console.log('USAGE: node -r ts-node/register src/testClient.ts');
-  process.exit(-1);
-};
-
 const callClient = () => {
-  if (process.argv.length !== 2) {
-    printUsage();
-  }
   // For local testing
   process.env.SNODES = 'localhost:50051';
   const snodes = process.env.SNODES;

@@ -8,7 +8,7 @@ import {RlpDecode, RlpDecoderTransform, RlpList} from 'rlp-stream';
 import {Readable} from 'stream';
 
 import {StorageNode} from './index';
-import {computeBlockHash, CreationOp, DeletionOp, ethereumAccountToRlp, ExecutionOp, rlpToEthereumAccount, StorageInsertion, UpdateOps, ValueChangeOp} from './utils';
+import {computeBlockHash, ethereumAccountToRlp, rlpToEthereumAccount, StorageUpdates, UpdateOps} from './utils';
 
 const asyncChunks = require('async-chunks');
 const fs = process.browser ? undefined : require('fs-extra');
@@ -21,6 +21,7 @@ chai.should();
 
 const BLOCK_FIRST10 = 'test_data/first10.bin';
 const snode = new StorageNode(-1);
+const rlpBlocks: RlpList[] = [];
 
 const loadStream = async (filename: string) => {
   const decoder = new RlpDecoderTransform();
@@ -49,8 +50,6 @@ const assertEquals = (n0: BigInt, n1: BigInt) => {
 };
 
 describe('Utility functions', async () => {
-  const rlpBlocks: RlpList[] = [];
-
   before(async () => {
     for await (const chunk of asyncChunks(await loadStream(BLOCK_FIRST10))) {
       rlpBlocks.push(chunk);
@@ -68,7 +67,11 @@ describe('Utility functions', async () => {
   it('should rlpEncode and rlpDecode EthereumAccount correctly', async () => {
     const account =
         Buffer.from('000d836201318ec6899a67540690382780743280', 'hex');
-    const accountVal = snode.get(account).value;
+    const getAcc = await snode.get(account);
+    if (!getAcc) {
+      throw new Error('Null Response');
+    }
+    const accountVal = getAcc.value;
     const rlpAccount = RlpDecode(accountVal!) as RlpList;
     const ethAccount = rlpToEthereumAccount(rlpAccount);
     const decodedVal = ethereumAccountToRlp(ethAccount);
@@ -105,7 +108,11 @@ describe('Client <-> storage functions', async () => {
         '0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470');
     const storageRoot = BigInt(
         '0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421');
-    const accountVal = snode.get(account).value;
+    const getAcc = await snode.get(account);
+    if (!getAcc) {
+      throw new Error('Null Response');
+    }
+    const accountVal = getAcc.value;
     const rlpAccount = RlpDecode(accountVal!) as RlpList;
     const ethAccount = rlpToEthereumAccount(rlpAccount);
     assertEquals(ethAccount.nonce, nonce);
@@ -117,7 +124,11 @@ describe('Client <-> storage functions', async () => {
   it('GetAccount: non-existing account', async () => {
     const account =
         Buffer.from('000abcdefabcdefabcdef0001234567890abcdef', 'hex');
-    const accountVal = snode.get(account).value;
+    const getAcc = await snode.get(account);
+    if (!getAcc) {
+      throw new Error('Null Response');
+    }
+    const accountVal = getAcc.value;
     should.not.exist(accountVal);
   });
 
@@ -127,13 +138,19 @@ describe('Client <-> storage functions', async () => {
     const codeHash = BigInt(
         '0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470');
 
-    let codeAndAccount = snode.getCode(account, true);
+    let codeAndAccount = await snode.getCode(account, true);
+    if (!codeAndAccount) {
+      throw new Error('Null Response');
+    }
     const code = codeAndAccount.code;
     const calCodeHash = hashAsBigInt(HashType.KECCAK256, code!);
     assertEquals(calCodeHash, codeHash);
     should.not.exist(codeAndAccount.account);
 
-    codeAndAccount = snode.getCode(account, false);
+    codeAndAccount = await snode.getCode(account, false);
+    if (!codeAndAccount) {
+      throw new Error('Null Response');
+    }
     should.exist(codeAndAccount.account);
     should.exist(codeAndAccount.code);
   });
@@ -141,11 +158,17 @@ describe('Client <-> storage functions', async () => {
   it('GetCode: non existing account', async () => {
     const account =
         Buffer.from('000abcdefabcdefabcdef0001234567890abcdef', 'hex');
-    let codeAndAccount = snode.getCode(account, false);
+    let codeAndAccount = await snode.getCode(account, false);
+    if (!codeAndAccount) {
+      throw new Error('Null Response');
+    }
     should.not.exist(codeAndAccount.account!.value);
     should.not.exist(codeAndAccount.code);
 
-    codeAndAccount = snode.getCode(account, true);
+    codeAndAccount = await snode.getCode(account, true);
+    if (!codeAndAccount) {
+      throw new Error('Null Response');
+    }
     should.not.exist(codeAndAccount.account);
     should.not.exist(codeAndAccount.code);
   });
@@ -153,205 +176,167 @@ describe('Client <-> storage functions', async () => {
   it('GetStorage: non existing account', async () => {
     const account =
         Buffer.from('000abcdefabcdefabcdef0001234567890abcdef', 'hex');
-    const storage = snode.getStorage(account, toBigIntBE(account));
+    const storage = await snode.getStorage(account, toBigIntBE(account));
     should.not.exist(storage);
   });
 
   it('GetStorage: existing account but non existing storage', async () => {
     const account =
         Buffer.from('000d836201318ec6899a67540690382780743280', 'hex');
-    const storage = snode.getStorage(account, toBigIntBE(account));
+    const storage = await snode.getStorage(account, toBigIntBE(account));
+    if (!storage) {
+      throw new Error('Null Response');
+    }
     should.not.exist(storage!.value);
   });
 
   it('GetBlockHash: non existing block', async () => {
-    const blockInValid = snode.getBlockHash(BigInt(1));
+    const blockInValid = await snode.getBlockHash(BigInt(1));
     should.exist(blockInValid);
+    if (!blockInValid) {
+      throw new Error('Null Response');
+    }
     blockInValid.length.should.equal(0);
   });
 
   it('GetRecentBlocks and GetBlockHash', async () => {
-    const recentBlocks = snode.getRecentBlocks();
+    const recentBlocks = await snode.getRecentBlocks();
+    if (!recentBlocks) {
+      throw new Error('Null Response');
+    }
     assertEquals(BigInt(recentBlocks.length), BigInt(1));
-    const blocks = snode.getBlockHash(BigInt(0));
+    const blocks = await snode.getBlockHash(BigInt(0));
+    if (!blocks) {
+      throw new Error('Null Response');
+    }
     blocks.should.deep.equal(recentBlocks);
   });
 });
 
-describe('Verifier <-> storage update with CreationOP', async () => {
+describe('Verifier <-> storage functions', async () => {
+  const codeHash: bigint = BigInt(
+      '0xc5d2460186f7233c927e7db2dcc703c0e500b653ca82273b7bfad8045d85a470');
+  const storageRoot = BigInt(
+      '0x56e81f171bcc55a6ff8345e692c0f86e5b48e01b996cadc001622fb5e363b421');
   const address =
-      Buffer.from('000abcdefabcdefabcdef0001234567890abcdef', 'hex');
-  const balance = BigInt(10);
-  const code = address;
-  const codeHash = hashAsBigInt(HashType.KECCAK256, code);
-  const storage = new Map<bigint, bigint>();
-  storage.set(toBigIntBE(address), toBigIntBE(address));
-  const newAccount: CreationOp =
-      {type: 'CreationOp', account: address, value: balance, code, storage};
+      Buffer.from('0000000000000000000000000000000000000000', 'hex');
 
-  const rlpBlocks: RlpList[] = [];
-  before(async () => {
-    for await (const chunk of asyncChunks(await loadStream(BLOCK_FIRST10))) {
-      rlpBlocks.push(chunk);
+  it('Create: Should be able to create new accounts', async () => {
+    const newAccount: UpdateOps = {
+      account: address,
+      balance: 100n,
+      nonce: 10n,
+      code: Buffer.from(''),
+      storage: [],
+      deleted: false
+    };
+    const block = rlpBlocks[1];
+    const updateOps: UpdateOps[] = [newAccount];
+    await snode.update(block, updateOps);
+    const ret = await snode.get(address);
+    should.exist(ret.value);
+    if (ret) {
+      const account = rlpToEthereumAccount(RlpDecode(ret.value!) as RlpList);
+      assertEquals(account.balance, 100n);
+      assertEquals(account.nonce, 10n);
+      assertEquals(account.codeHash, codeHash);
+      assertEquals(account.storageRoot, storageRoot);
+    } else {
+      throw new Error('Failed to insert newAccount');
     }
   });
 
-  it('Should be able to read account', async () => {
-    snode.update(rlpBlocks[1], {ops: [newAccount]} as UpdateOps);
-    const accountVal = snode.get(address).value;
-    const rlpAccount = RlpDecode(accountVal!) as RlpList;
-    const ethAccount = rlpToEthereumAccount(rlpAccount);
-    assertEquals(ethAccount.nonce, BigInt(0));
-    assertEquals(ethAccount.balance, balance);
-    assertEquals(ethAccount.codeHash, codeHash);
-  });
-
-  it('Should be able to read code', async () => {
-    const readCode = snode.getCode(address, true).code;
-    should.exist(readCode);
-    readCode!.should.deep.equal(code);
-  });
-
-  it('Should be able to read storage', async () => {
-    const readStorage = snode.getStorage(address, toBigIntBE(address));
-    const val = readStorage!.value!;
-    val.should.deep.equal(address);
-  });
-});
-
-describe('Verifier <-> storage update with ValueChangeOp', async () => {
-  const address =
-      Buffer.from('000abcdefabcdefabcdef0001234567890abcdef', 'hex');
-  const balance = BigInt(100);
-  const changes = 20;
-  const codeHash = hashAsBigInt(HashType.KECCAK256, address);
-  const updateAccount: ValueChangeOp =
-      {type: 'ValueChangeOp', account: address, value: balance, changes};
-
-  const rlpBlocks: RlpList[] = [];
-  before(async () => {
-    for await (const chunk of asyncChunks(await loadStream(BLOCK_FIRST10))) {
-      rlpBlocks.push(chunk);
+  it('Update: Should update balance of an existing account', async () => {
+    const block = rlpBlocks[2];
+    const updateAccount = {account: address, balance: 10000n};
+    const updateOps: UpdateOps[] = [updateAccount];
+    await snode.update(block, updateOps);
+    const ret = await snode.get(address);
+    should.exist(ret.value);
+    if (ret) {
+      const account = rlpToEthereumAccount(RlpDecode(ret.value!) as RlpList);
+      assertEquals(account.balance, 10000n);
+      assertEquals(account.nonce, 10n);
+      assertEquals(account.codeHash, codeHash);
+      assertEquals(account.storageRoot, storageRoot);
+    } else {
+      throw new Error('Failed to insert newAccount');
     }
   });
 
-  it('Should be able to read the modified account', async () => {
-    snode.update(rlpBlocks[2], {ops: [updateAccount]} as UpdateOps);
-    const accountVal = snode.get(address).value;
-    const rlpAccount = RlpDecode(accountVal!) as RlpList;
-    const ethAccount = rlpToEthereumAccount(rlpAccount);
-    assertEquals(ethAccount.codeHash, codeHash);
-  });
-
-  it('Account should reflect new balance and nonce', async () => {
-    const accountVal = snode.get(address).value;
-    const rlpAccount = RlpDecode(accountVal!) as RlpList;
-    const ethAccount = rlpToEthereumAccount(rlpAccount);
-    assertEquals(ethAccount.nonce, BigInt(20));
-    assertEquals(ethAccount.balance, balance);
-  });
-
-  it('Should be able to read unmodified code', async () => {
-    const readCode = snode.getCode(address, true).code;
-    should.exist(readCode);
-    readCode!.should.deep.equal(address);
-  });
-
-  it('Should be able to read unmodified storage', async () => {
-    const readStorage = snode.getStorage(address, toBigIntBE(address));
-    const val = readStorage!.value!;
-    val.should.deep.equal(address);
-  });
-});
-
-describe('Verifier <-> storage update with ExecutionOP', async () => {
-  const address =
-      Buffer.from('000abcdefabcdefabcdef0001234567890abcdef', 'hex');
-  const balance = BigInt(200);
-  const codeHash = hashAsBigInt(HashType.KECCAK256, address);
-  const updatedStorageValue =
-      Buffer.from('0000000000000000000000001234567890000000', 'hex');
-
-  const storageUpdates = [{
-    type: 'StorageInsertion',
-    key: toBigIntBE(address),
-    val: toBigIntBE(updatedStorageValue),
-  } as StorageInsertion];
-
-  const updateAccount: ExecutionOp =
-      {type: 'ExecutionOp', account: address, value: balance, storageUpdates};
-
-  const rlpBlocks: RlpList[] = [];
-  before(async () => {
-    for await (const chunk of asyncChunks(await loadStream(BLOCK_FIRST10))) {
-      rlpBlocks.push(chunk);
+  it('Update: Should update nonce of an existing account', async () => {
+    const block = rlpBlocks[3];
+    const updateAccount = {account: address, nonce: 1000n};
+    const updateOps: UpdateOps[] = [updateAccount];
+    await snode.update(block, updateOps);
+    const ret = await snode.get(address);
+    should.exist(ret.value);
+    if (ret) {
+      const account = rlpToEthereumAccount(RlpDecode(ret.value!) as RlpList);
+      assertEquals(account.balance, 10000n);
+      assertEquals(account.nonce, 1000n);
+      assertEquals(account.codeHash, codeHash);
+    } else {
+      throw new Error('Failed to insert newAccount');
     }
   });
 
-  it('Should be able to read the modified account', async () => {
-    snode.update(rlpBlocks[3], {ops: [updateAccount]} as UpdateOps);
-    const accountVal = snode.get(address).value;
-    const rlpAccount = RlpDecode(accountVal!) as RlpList;
-    const ethAccount = rlpToEthereumAccount(rlpAccount);
-    assertEquals(ethAccount.balance, balance);
-    assertEquals(ethAccount.codeHash, codeHash);
-  });
-
-  it('Account should have the updated balance', async () => {
-    const accountVal = snode.get(address).value;
-    const rlpAccount = RlpDecode(accountVal!) as RlpList;
-    const ethAccount = rlpToEthereumAccount(rlpAccount);
-    assertEquals(ethAccount.balance, balance);
-  });
-
-  it('Account should have the modified storage', async () => {
-    const readStorage = snode.getStorage(address, toBigIntBE(address));
-    const val = readStorage!.value!;
-    val.should.deep.equal(updatedStorageValue);
-  });
-
-  it('Should be able to read unmodified code', async () => {
-    const readCode = snode.getCode(address, true).code;
-    should.exist(readCode);
-    readCode!.should.deep.equal(address);
-  });
-});
-
-describe('Verifier <-> storage update with DeletionOp', async () => {
-  const address =
-      Buffer.from('000abcdefabcdefabcdef0001234567890abcdef', 'hex');
-
-  const updateAccount: DeletionOp = {type: 'DeletionOp', account: address};
-
-  const rlpBlocks: RlpList[] = [];
-  before(async () => {
-    for await (const chunk of asyncChunks(await loadStream(BLOCK_FIRST10))) {
-      rlpBlocks.push(chunk);
+  it('Update: Should update storage of an existing account', async () => {
+    const block = rlpBlocks[4];
+    const sKey = toBigIntBE(address);
+    const storageValues: StorageUpdates[] = [{key: sKey, value: sKey}];
+    const updateAccount = {account: address, storage: storageValues};
+    const updateOps: UpdateOps[] = [updateAccount];
+    await snode.update(block, updateOps);
+    const ret = await snode.get(address);
+    const root =
+        39309028074332508661983559455579427211983204215636056653337583610388178777121n;
+    should.exist(ret.value);
+    if (ret) {
+      const account = rlpToEthereumAccount(RlpDecode(ret.value!) as RlpList);
+      assertEquals(account.balance, 10000n);
+      assertEquals(account.nonce, 1000n);
+      assertEquals(account.codeHash, codeHash);
+      assertEquals(account.storageRoot, storageRoot);
+      assertEquals(account.storageRoot, root);
+    } else {
+      throw new Error('Failed to insert newAccount');
     }
   });
 
-  it('Should delete the account', async () => {
-    snode.update(rlpBlocks[4], {ops: [updateAccount]} as UpdateOps);
-    const accountVal = snode.get(address).value;
-    should.not.exist(accountVal);
+  it('Update: Should update storage of an existing account', async () => {
+    const block = rlpBlocks[5];
+    const sKey = toBigIntBE(address);
+    const storageValues: StorageUpdates[] = [{key: sKey, value: 0n}];
+    const updateAccount = {account: address, storage: storageValues};
+    const updateOps: UpdateOps[] = [updateAccount];
+    await snode.update(block, updateOps);
+    const ret = await snode.get(address);
+    should.exist(ret.value);
+    if (ret) {
+      const account = rlpToEthereumAccount(RlpDecode(ret.value!) as RlpList);
+      assertEquals(account.balance, 10000n);
+      assertEquals(account.nonce, 1000n);
+      assertEquals(account.codeHash, codeHash);
+      assertEquals(account.storageRoot, storageRoot);
+    } else {
+      throw new Error('Failed to insert newAccount');
+    }
   });
 
-  it('Should delete the deleted account\'s storage', async () => {
-    const readStorage = snode.getStorage(address, toBigIntBE(address));
-    should.not.exist(readStorage);
-  });
-
-  it('Should delete the deleted accounts code', async () => {
-    const readCode = snode.getCode(address, true).code;
-    should.not.exist(readCode);
-  });
-
-  it('Global state root hash should match genesis state hash', async () => {
-    const last = snode._highestBlockNumber;
-    const root = snode._activeSnapshots.get(last)[0].root;
-    const genRoot = Buffer.from(
-        'd7f8974fb5ac78d9ac099b9ad5018bedc2ce0a72dad1827a1709da30580f0544',
-        'hex');
-    root.should.deep.equal(genRoot);
+  it('Update: Should delete an existing account', async () => {
+    const block = rlpBlocks[6];
+    const updateAccount: UpdateOps = {
+      account: address,
+      deleted: true,
+      nonce: 10n,
+      balance: 100n,
+      code: Buffer.from(''),
+      storage: [],
+    };
+    const updateOps: UpdateOps[] = [updateAccount];
+    await snode.update(block, updateOps);
+    const ret = await snode.get(address);
+    should.not.exist(ret.value);
   });
 });
