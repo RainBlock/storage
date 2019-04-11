@@ -306,7 +306,7 @@ export class StorageNode implements Storage {
         throw new Error('stateRoot and blockStateRoot dont match');
       }
       const root = (trie.rootNode.branches[this._shard])!.hash(
-        {} as MerklePatriciaTreeOptions<{}, Buffer>);
+          {} as MerklePatriciaTreeOptions<{}, Buffer>);
       this._checkRoots(root, merkleNodes);
     }
 
@@ -324,16 +324,17 @@ export class StorageNode implements Storage {
   private async _checkRoots(shRoot: bigint, rlp: Buffer) {
     const cache = new CachedMerklePatriciaTree<Buffer, Buffer>();
     const rootNode: MerklePatriciaTreeNode<Buffer> =
-      cache.rlpToMerkleNode(rlp, (val: Buffer) => (val));
+        cache.rlpToMerkleNode(rlp, (val: Buffer) => (val));
 
     if (rootNode instanceof BranchNode) {
       const merkleBranch = rootNode.branches[this._shard];
-      const branchHash = merkleBranch.hash({} as MerklePatriciaTreeOptions<{}, Buffer>);
+      const branchHash =
+          merkleBranch.hash({} as MerklePatriciaTreeOptions<{}, Buffer>);
       if (branchHash !== shRoot) {
         throw new Error('shardedStateRoots dont hash to blockStateRoot');
       }
     }
-    console.log(this._shard, "checkRoots passes");
+    console.log(this._shard, 'checkRoots passes');
   }
 
   async getRecentBlocks(): Promise<Array<bigint>> {
