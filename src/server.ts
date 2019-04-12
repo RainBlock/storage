@@ -167,10 +167,10 @@ const update = async (
     const code = Buffer.from(item.getCode_asU8());
     const op: utils.UpdateOps = {
       account: Buffer.from(item.getAccount_asU8()),
-      balance: (balance) ? balance : undefined,
-      nonce: (nonce) ? nonce : undefined,
-      code: (code.length) ? code : undefined,
-      storage: (storage.length) ? storage : undefined,
+      balance: (balance || balance === 0n) ? balance : undefined,
+      nonce: (nonce || nonce === 0n) ? nonce : undefined,
+      code: (code) ? code : undefined,
+      storage: (storage && storage.length) ? storage : undefined,
       deleted: (item.getDeleted()) ? true : false,
     };
     update.push(op);

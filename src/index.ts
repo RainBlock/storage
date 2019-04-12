@@ -252,18 +252,18 @@ export class StorageNode implements Storage {
         } else {
           const oldAccount =
               rlpToEthereumAccount(RlpDecode(oldValue) as RlpList);
-          if (put.balance) {
+          if (put.balance !== undefined) {
             oldAccount.balance = put.balance;
           }
-          if (put.nonce) {
+          if (put.nonce !== undefined) {
             oldAccount.nonce = put.nonce;
           }
-          if (put.code) {
+          if (put.code !== undefined) {
             const codeHash = hashAsBigInt(HashType.KECCAK256, put.code);
             this._CodeStorage.set(codeHash, put.code);
             oldAccount.codeHash = codeHash;
           }
-          if (put.storage && put.storage.length !== 0) {
+          if (put.storage !== undefined) {
             const oldStorageRoot = oldAccount.storageRoot;
             let internalTrie = this._InternalStorage.get(oldStorageRoot);
             if (!internalTrie) {
@@ -332,7 +332,6 @@ export class StorageNode implements Storage {
         throw new Error('shardedStateRoots dont hash to blockStateRoot');
       }
     }
-    console.log(this._shard, 'checkRoots passes');
   }
 
   async getRecentBlocks(): Promise<Array<bigint>> {
