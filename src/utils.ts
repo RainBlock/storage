@@ -2,13 +2,6 @@ import {toBigIntBE, toBufferBE} from 'bigint-buffer';
 import {hashAsBigInt, HashType} from 'bigint-hash';
 import * as fs from 'fs-extra';
 import {RlpEncode, RlpList} from 'rlp-stream/build/src/rlp-stream';
-import {chain} from 'stream-chain';
-import {parser} from 'stream-json';
-import {pick} from 'stream-json/filters/Pick';
-import {streamObject} from 'stream-json/streamers/StreamObject';
-import * as zlib from 'zlib';
-
-const asyncChunks = require('async-chunks');
 const wait = require('wait-for-stuff');
 
 export function computeBlockHash(block: RlpList): bigint {
@@ -69,17 +62,6 @@ export function rlpToEthereumAccount(rlpAccount: RlpList): EthereumAccount {
   return account;
 }
 
-export function getStateFromGethJSON(
-    filename: string, compressed = false): GethPutOps[] {
-  const prom = _getStateFromGethJSON(filename, compressed);
-  let putOps: GethPutOps[] = [];
-  prom.then((ops) => {
-    putOps = ops;
-  });
-  wait.for.predicate(() => (putOps.length !== 0));
-  return putOps;
-}
-
 export function gethAccountToEthAccount(account: GethStateDumpAccount):
     EthereumAccount {
   const code = Buffer.from(account.code, 'hex');
@@ -92,30 +74,25 @@ export function gethAccountToEthAccount(account: GethStateDumpAccount):
   return ethAccount;
 }
 
-async function _getStateFromGethJSON(filename: string, compressed = false) {
-  if (!compressed) {
-    const ops: GethPutOps[] = [];
-    const gethJSON =
-        JSON.parse(await fs.readFile(filename, {encoding: 'utf8'})) as
-        GethStateDump;
-    for (const [id, account] of Object.entries(gethJSON.accounts)) {
-      ops.push({key: Buffer.from(id, 'hex'), val: account});
-    }
-    return ops;
-  } else {
-    const ops: GethPutOps[] = [];
-    const pipeline = chain([
-      fs.createReadStream(filename),
-      zlib.createGunzip(),
-      parser(),
-      pick({filter: 'accounts'}),
-      streamObject(),
-    ]);
-    for await (const data of asyncChunks(pipeline)) {
-      ops.push({key: Buffer.from(data.key, 'hex'), val: data.val});
-    }
-    return ops;
+export function getStateFromGethJSON(filename: string): GethPutOps[] {
+  const putOpsPromise = _getStateFromGethJSON(filename);
+  let putOps: GethPutOps[] = [];
+  putOpsPromise.then((ops) => {
+    putOps = ops;
+  });
+  wait.for.predicate(() => putOps.length);
+  return putOps;
+}
+
+async function _getStateFromGethJSON(filename: string) {
+  const ops: GethPutOps[] = [];
+  const gethJSON =
+      JSON.parse(await fs.readFile(filename, {encoding: 'utf8'})) as
+      GethStateDump;
+  for (const [id, account] of Object.entries(gethJSON.accounts)) {
+    ops.push({key: toBufferBE(BigInt(`0x${id}`), 20), val: account});
   }
+  return ops;
 }
 
 export interface UpdateOps {

@@ -7,9 +7,6 @@ import {RlpDecode, RlpEncode, RlpList} from 'rlp-stream';
 
 import {computeBlockHash, EthereumAccount, ethereumAccountToRlp, gethAccountToEthAccount, GethStateDumpAccount, getStateFromGethJSON, rlpToEthereumAccount, UpdateOps} from './utils';
 
-const nodeEthash = require('node-ethash');
-const level = require('level-mem');
-const ethjsBlock = require('ethereumjs-block');
 const multiMap = require('multimap');
 
 export interface Storage {
@@ -17,7 +14,7 @@ export interface Storage {
   get: (key: Buffer, root?: Buffer) => Promise<Witness<Buffer>>;
   getCode: (address: Buffer, codeOnly: boolean) => Promise<GetCodeReply>;
   getStorage: (address: Buffer, key: bigint) => Promise<Witness<Buffer>|null>;
-  putGenesis: (genesisJSON?: string, genesisBIN?: string) => Promise<void>;
+  putGenesis: (genesisJSON?: string, genesisBIN?: string) => void;
   update: (block: RlpList, putOps: UpdateOps[]) => Promise<void>;
   getRecentBlocks: () => Promise<Array<bigint>>;
 }
@@ -74,6 +71,7 @@ export class StorageNode implements Storage {
     this.putGenesis(genesisJSON, genesisBIN);
   }
 
+  /*
   verifyPOW(block: RlpList) {
     const _cacheDB = new level();
     const _ethash = new nodeEthash(_cacheDB);
@@ -84,6 +82,7 @@ export class StorageNode implements Storage {
           result ? 'Valid ' + blockNumber : 'Invalid ' + blockNumber);
     });
   }
+  */
 
   isEmpty(): boolean {
     if (this._blockchain.size !== 0 || this._blockNumberToHash.size !== 0 ||
@@ -123,7 +122,7 @@ export class StorageNode implements Storage {
     return root;
   }
 
-  async putGenesis(genesisJSON?: string, genesisBIN?: string) {
+  putGenesis(genesisJSON?: string, genesisBIN?: string) {
     if (!this.isEmpty()) {
       throw new Error('Invalid: putGenesis when blockchain not empty');
     }
@@ -205,7 +204,6 @@ export class StorageNode implements Storage {
       rlpBlock: RlpList, updateOps: UpdateOps[], merkleNodes?: Buffer) {
     this.gc();
     const block: EthereumBlock = await decodeBlock(rlpBlock);
-    this.verifyPOW(rlpBlock);
     const parentHash = block.header.parentHash;
     const parentState: MerklePatriciaTree =
         (this._blockchain.get(parentHash)[0])![1];

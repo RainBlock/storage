@@ -8,19 +8,18 @@ import {RlpDecode, RlpDecoderTransform, RlpList} from 'rlp-stream';
 import {Readable} from 'stream';
 
 import {StorageNode} from './index';
-import {computeBlockHash, ethereumAccountToRlp, rlpToEthereumAccount, StorageUpdates, UpdateOps} from './utils';
+import {ethereumAccountToRlp, rlpToEthereumAccount, StorageUpdates, UpdateOps} from './utils';
 
 const asyncChunks = require('async-chunks');
 const fs = process.browser ? undefined : require('fs-extra');
 const get = process.browser ? require('simple-get') : undefined;
-const ethjsBlock = require('ethereumjs-block');
 
 declare var process: {browser: boolean;};
 const should = chai.should();
 chai.should();
 
 const BLOCK_FIRST10 = 'test_data/first10.bin';
-const snode = new StorageNode(-1);
+let snode: StorageNode;
 const rlpBlocks: RlpList[] = [];
 
 const loadStream = async (filename: string) => {
@@ -51,16 +50,9 @@ const assertEquals = (n0: BigInt, n1: BigInt) => {
 
 describe('Utility functions', async () => {
   before(async () => {
+    snode = new StorageNode(-1);
     for await (const chunk of asyncChunks(await loadStream(BLOCK_FIRST10))) {
       rlpBlocks.push(chunk);
-    }
-  });
-
-  it('ComputeBlockHash: should compute correct block hash', async () => {
-    for (let i = 0; i < rlpBlocks.length; i++) {
-      const ethBlock = new ethjsBlock(rlpBlocks[i]);
-      const hash = toBufferBE(computeBlockHash(rlpBlocks[i]), 32);
-      hash.should.deep.equal(ethBlock.hash());
     }
   });
 
