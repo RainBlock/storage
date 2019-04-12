@@ -1,6 +1,6 @@
 {
   "name": "rainblock-storage",
-  "version": "v3.0.0",
+  "version": "v3.2.0",
   "description": "Storage layer for the ethereum blockrain project",
   "main": "build/index.js",
   "scripts": {
@@ -38,7 +38,7 @@
   ],
   "license": "Apache-2.0",
   "dependencies": {
-    "@rainblock/ethereum-block": "^2.1.0",
+    "@rainblock/ethereum-block": "^2.1.3",
     "@rainblock/merkle-patricia-tree": "4.4.0",
     "@rainblock/protocol": "^4.0.0",
     "bigint-hash": "^0.2.2",
@@ -51,7 +51,7 @@
   "devDependencies": {
     "@types/chai": "^4.1.7",
     "@types/mocha": "^5.2.6",
-    "@types/node": "^11.13.0",
+    "@types/node": "^11.13.4",
     "async-chunks": "^1.1.0",
     "babel-preset-env": "^1.3.1",
     "benchmark": "^2.1.4",
@@ -63,6 +63,6 @@
     "pre-commit": "^1.2.2",
     "ts-node": "^7.0.1",
     "typedoc": "0.14.2",
-    "typescript": "^3.4.2"
+    "typescript": "^3.4.3"
   }
 }
