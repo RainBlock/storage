@@ -1,14 +1,17 @@
 import {MerklePatriciaTree} from '@rainblock/merkle-patricia-tree/build/src';
 import {AccountReply, AccountRequest, BlockHashReply, BlockHashRequest, CodeReply, CodeRequest, RPCWitness, StorageNodeService, StorageReply, StorageRequest, UpdateMsg, VerifierStorageService} from '@rainblock/protocol';
 import {toBigIntBE, toBufferBE} from 'bigint-buffer';
+import * as fs from 'fs';
 import {Empty} from 'google-protobuf/google/protobuf/empty_pb';
 import * as grpc from 'grpc';
 import {sendUnaryData, ServerUnaryCall} from 'grpc';
+import * as yaml from 'js-yaml';
+import * as path from 'path';
 import {RlpDecode, RlpList} from 'rlp-stream/build/src/rlp-stream';
 
+import {ConfigurationFile, StorageShards} from './configFile';
 import {StorageNode} from './index';
 import * as utils from './utils';
-
 
 let storage: StorageNode;
 const serializer = new MerklePatriciaTree();
@@ -190,36 +193,36 @@ const update = async (
   callback(null, new Empty());
 };
 
-const runServer = (port: number) => {
+const printUsage = () => {
+  console.log('USAGE: ts-node src/server.ts shard config');
+  console.log('shard: number in range(0, 15) or -1 for fullNode');
+  console.log('Sample config file in src/test_data/config.yml');
+  process.exit(-1);
+};
+
+const callServer = async () => {
+  const file =
+      (process.argv.length === 4) ? process.argv[3] : 'test_data/config.yml';
+  const filePath = path.join(__dirname, file);
+  const config = yaml.safeLoad(await fs.promises.readFile(filePath, 'utf8')) as
+      ConfigurationFile;
+
+  shards = config.shards;
+  shard = Number(process.argv[2]);
+  if (shard < -1 || shard > 15) {
+    printUsage();
+  }
+  storage = new StorageNode(shard, config.genesisData, config.genesisBlock);
   const server = new grpc.Server();
   server.addService(
       StorageNodeService, {getCodeInfo, getAccount, getStorage, getBlockHash});
   server.addService(VerifierStorageService, {update});
-  server.bind(
-      '0.0.0.0:' + port.toString(), grpc.ServerCredentials.createInsecure());
+  server.bind(shards[shard], grpc.ServerCredentials.createInsecure());
   server.start();
-  console.log('grpc server running on at 0.0.0.0:' + port.toString());
 };
 
-const printUsage = () => {
-  console.log('USAGE: ts-node src/server.ts shard port');
-  console.log('shard: number in range(0, 15) or -1 for fullNode');
-  console.log(' port: port to run the storage server on');
-  process.exit(-1);
-};
-
-const callServer = () => {
-  if (process.argv.length !== 4) {
-    printUsage();
-  }
-  const shard: number = Number(process.argv[2]);
-  const port: number = Number(process.argv[3]);
-  console.log('Received shard and port: ', shard, port);
-  if (shard !== -1 && (shard < 0 || shard > 15)) {
-    printUsage();
-  }
-  storage = new StorageNode(shard);
-  runServer(port);
-};
-
-callServer();
+let shard: number;
+let shards: StorageShards;
+callServer().then(() => {
+  console.log('Storage shard ' + shard + ' running on ' + shards[shard]);
+});

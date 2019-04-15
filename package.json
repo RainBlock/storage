@@ -42,6 +42,7 @@
     "@rainblock/merkle-patricia-tree": "4.6.0",
     "@rainblock/protocol": "^4.0.0",
     "bigint-hash": "^0.2.2",
+    "js-yaml": "^3.13.1",
     "multimap": "^1.0.2",
     "wait-for-stuff": "^1.4.0"
   },
@@ -50,6 +51,7 @@
   ],
   "devDependencies": {
     "@types/chai": "^4.1.7",
+    "@types/js-yaml": "^3.12.1",
     "@types/mocha": "^5.2.6",
     "@types/node": "^11.13.4",
     "async-chunks": "^1.1.0",
