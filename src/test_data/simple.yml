@@ -16,5 +16,5 @@ shards:
   14: 'localhost:9114'
   15: 'localhost:9115'
   -1: 'localhost:50051'
-genesisBlock: 'test_data/simple.bin'
-genesisData: 'test_data/simple.json'
+genesisBlock: 'test_data/genesis.bin'
+genesisData: 'test_data/genesis.json'
