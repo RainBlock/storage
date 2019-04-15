@@ -329,7 +329,7 @@ export class StorageNode implements Storage {
       const branchHash =
           merkleBranch.hash({} as MerklePatriciaTreeOptions<{}, Buffer>);
       if (branchHash !== shRoot) {
-        throw new Error('shardedStateRoots dont hash to blockStateRoot');
+        throw new Error(this._shard.toString() +': gishardedStateRoots dont hash to blockStateRoot');
       }
     }
   }
