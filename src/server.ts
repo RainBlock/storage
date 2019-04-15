@@ -196,11 +196,13 @@ const update = async (
 const printUsage = () => {
   console.log('USAGE: ts-node src/server.ts shard config');
   console.log('shard: number in range(0, 15) or -1 for fullNode');
+  console.log('config: relative path to config from src directory');
   console.log('Sample config file in src/test_data/config.yml');
   process.exit(-1);
 };
 
 const callServer = async () => {
+  // The cmd line argument should be a relative path from the __dirname
   const file =
       (process.argv.length === 4) ? process.argv[3] : 'test_data/config.yml';
   const filePath = path.join(__dirname, file);
