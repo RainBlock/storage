@@ -16,6 +16,10 @@ import * as utils from './utils';
 let storage: StorageNode;
 const serializer = new MerklePatriciaTree();
 
+let pruneDepth: number;
+let shard: number;
+let shards: StorageShards;
+
 const getCodeInfo = async (
     call: ServerUnaryCall<CodeRequest>, callback: sendUnaryData<CodeReply>) => {
   // unpack request
@@ -43,7 +47,7 @@ const getCodeInfo = async (
           if (account.value) {
             witness.setValue(new Uint8Array(account.value));
           }
-          witness.setProofListList(account.proof);
+          witness.setProofListList(account.proof.slice(pruneDepth));
           accountReply.setExists(exists);
           accountReply.setWitness(witness);
           reply.setAccountInfo(accountReply);
@@ -79,7 +83,7 @@ const getAccount = async (
         if (account.value) {
           witness.setValue(new Uint8Array(account.value));
         }
-        witness.setProofListList(account.proof);
+        witness.setProofListList(account.proof.slice(pruneDepth));
         reply.setWitness(witness);
         callback(null, reply);
       })
@@ -215,6 +219,7 @@ const callServer = async () => {
     printUsage();
   }
   storage = new StorageNode(shard, config.genesisData, config.genesisBlock);
+  pruneDepth = config.pruneDepth;
   const server = new grpc.Server({
     'grpc.max_send_message_length': config.maxMsgSendLength,
     'grpc.max_receive_message_length': config.maxMsgReceiveLength
@@ -226,8 +231,6 @@ const callServer = async () => {
   server.start();
 };
 
-let shard: number;
-let shards: StorageShards;
 callServer().then(() => {
   console.log('Storage shard ' + shard + ' running on ' + shards[shard]);
 });

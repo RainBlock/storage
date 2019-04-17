@@ -51,4 +51,5 @@ export interface ConfigurationFile {
   genesisData: string;
   maxMsgSendLength: number;
   maxMsgReceiveLength: number;
+  pruneDepth: number;
 }
