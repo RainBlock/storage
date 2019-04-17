@@ -18,3 +18,5 @@ shards:
   -1: '0.0.0.0:50051'
 genesisBlock: 'test_data/simple.bin'
 genesisData: 'test_data/simple.json'
+maxMsgSendLength: 125829120
+maxMsgReceiveLength: 125829120

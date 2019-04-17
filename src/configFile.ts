@@ -49,4 +49,6 @@ export interface ConfigurationFile {
    * config file
    */
   genesisData: string;
+  maxMsgSendLength: number;
+  maxMsgReceiveLength: number;
 }

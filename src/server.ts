@@ -215,7 +215,10 @@ const callServer = async () => {
     printUsage();
   }
   storage = new StorageNode(shard, config.genesisData, config.genesisBlock);
-  const server = new grpc.Server();
+  const server = new grpc.Server({
+    'grpc.max_send_message_length': config.maxMsgSendLength,
+    'grpc.max_receive_message_length': config.maxMsgReceiveLength
+  });
   server.addService(
       StorageNodeService, {getCodeInfo, getAccount, getStorage, getBlockHash});
   server.addService(VerifierStorageService, {update});
