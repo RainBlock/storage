@@ -140,7 +140,7 @@ export class StorageNode implements Storage {
       batchOps.push({key: put.key, val: ethereumAccountToRlp(val)});
     }
     trie.batch(batchOps, []);
-    console.log("Storage initialized to ", trie.root);
+    console.log('Storage initialized to ', trie.root);
     for (const put of putOps) {
       this._updateGethStorage(
           put.val.storage, put.val.root, put.val.codeHash, put.val.code);
