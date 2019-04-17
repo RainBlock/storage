@@ -90,6 +90,7 @@ async function _getStateFromGethJSON(filename: string) {
       JSON.parse(await fs.readFile(filename, {encoding: 'utf8'})) as
       GethStateDump;
   for (const [id, account] of Object.entries(gethJSON.accounts)) {
+    const throwAwayKey = toBufferBE(BigInt(`0x${id}`), 20);
     ops.push({key: toBufferBE(BigInt(`0x${id}`), 20), val: account});
   }
   return ops;
