@@ -23,7 +23,7 @@ let shards: StorageShards;
 const getCodeInfo = async (
     call: ServerUnaryCall<CodeRequest>, callback: sendUnaryData<CodeReply>) => {
   // unpack request
-  const address = Buffer.from(call.request.getAddress_asU8());
+  const address = await u8ToBuffer(call.request.getAddress_asU8());
   const codeOnly = call.request.getCodeOnly();
 
   // storage call
@@ -72,11 +72,36 @@ const getCodeInfo = async (
       });
 };
 
+const u8ToHexString = async (byteArray: Uint8Array) => {
+  let hexString = '';
+  const length = byteArray.length;
+  for (let i = 0; i < byteArray.length; i++) {
+    hexString += (byteArray[i] & 0xf0).toString(16)[0];
+    hexString += (byteArray[i] & 0x0f).toString(16);
+  }
+  return hexString;
+};
+
+const u8ToBigInt = async (byteArray: Uint8Array) => {
+  const hexString = await u8ToHexString(byteArray);
+  if (hexString.length === 0) {
+    return 0n;
+  }
+  return BigInt(`0x${hexString}`);
+};
+
+const u8ToBuffer = async (byteArray: Uint8Array) => {
+  const length = byteArray.length;
+  const bigintBuffer = await u8ToBigInt(byteArray);
+  return toBufferBE(bigintBuffer, length);
+};
+
 const getAccount = async (
     call: ServerUnaryCall<AccountRequest>,
     callback: sendUnaryData<AccountReply>) => {
+  const start = process.hrtime.bigint();
   // unpack request
-  const address = Buffer.from(call.request.getAddress_asU8());
+  const address = await u8ToBuffer(call.request.getAddress_asU8());
 
   // storage call
   const prom = storage.get(address);
@@ -101,6 +126,8 @@ const getAccount = async (
         witness.setProofListList(account.proof);
         reply.setWitness(witness);
         callback(null, reply);
+        const end = process.hrtime.bigint();
+        console.log(`getAccount: ${end - start} ns`);
       })
       .catch((e) => {
         console.log('ERROR: getAccount\n', e);
@@ -113,8 +140,9 @@ const getStorage = async (
     call: ServerUnaryCall<StorageRequest>,
     callback: sendUnaryData<StorageReply>) => {
   // unpack request
-  const address = Buffer.from(call.request.getAddress_asU8());
-  const key = Buffer.from(call.request.getKey_asU8());
+  const start = process.hrtime.bigint();
+  const address = await u8ToBuffer(call.request.getAddress_asU8());
+  const key = await u8ToBuffer(call.request.getKey_asU8());
 
   // storage call
   const prom = storage.getStorage(address, toBigIntBE(key));
@@ -133,6 +161,8 @@ const getStorage = async (
         }
         witness.setProofListList(accStorage.proof);
         reply.setWitness(witness);
+        const end = process.hrtime.bigint();
+        console.log(`getStorage: ${end - start} ns`);
         callback(null, reply);
       })
       .catch((e) => {
@@ -145,6 +175,7 @@ const getStorage = async (
 const getBlockHash = async (
     call: ServerUnaryCall<BlockHashRequest>,
     callback: sendUnaryData<BlockHashReply>) => {
+  const start = process.hrtime.bigint();
   // unpack request
   const blockNumber = BigInt(call.request.getNumber());
 
@@ -159,6 +190,8 @@ const getBlockHash = async (
         }
         reply.setHashesList(retList);
         callback(null, reply);
+        const end = process.hrtime.bigint();
+        console.log(`getBlockHash: ${end - start} ns`);
       })
       .catch((e) => {
         console.log('ERROR getBlockHash\n', e);
@@ -169,10 +202,11 @@ const getBlockHash = async (
 
 const update = async (
     call: ServerUnaryCall<UpdateMsg>, callback: sendUnaryData<Empty>) => {
+  const start = process.hrtime.bigint();
   // unpack request;
-  const block = Buffer.from(call.request.getRlpBlock_asU8());
+  const block = await u8ToBuffer(call.request.getRlpBlock_asU8());
   const rlpBlock = RlpDecode(block) as RlpList;
-  const merkleNodes = Buffer.from(call.request.getMerkleTreeNodes_asU8());
+  const merkleNodes = await u8ToBuffer(call.request.getMerkleTreeNodes_asU8());
   const opList = call.request.getOperationsList();
   const update: utils.UpdateOps[] = [];
   for (const item of opList) {
@@ -180,15 +214,15 @@ const update = async (
     const storageList = item.getStorageUpdateList();
     for (const sop of storageList) {
       storage.push({
-        key: toBigIntBE(Buffer.from(sop.getKey_asU8())),
-        value: toBigIntBE(Buffer.from(sop.getValue_asU8()))
+        key: await u8ToBigInt(sop.getKey_asU8()),
+        value: await u8ToBigInt(sop.getValue_asU8())
       });
     }
-    const balance = toBigIntBE(Buffer.from(item.getBalance_asU8()));
+    const balance = await u8ToBigInt(item.getBalance_asU8());
     const nonce = BigInt(item.getNonce());
-    const code = Buffer.from(item.getCode_asU8());
+    const code = await u8ToBuffer(item.getCode_asU8());
     const op: utils.UpdateOps = {
-      account: Buffer.from(item.getAccount_asU8()),
+      account: await u8ToBuffer(item.getAccount_asU8()),
       balance: (balance || balance === 0n) ? balance : undefined,
       nonce: (nonce || nonce === 0n) ? nonce : undefined,
       code: (code) ? code : undefined,
@@ -210,6 +244,8 @@ const update = async (
     return;
   });
   callback(null, new Empty());
+  const end = process.hrtime.bigint();
+  console.log(`Update: ${end - start} ns`);
 };
 
 const printUsage = () => {
