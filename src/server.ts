@@ -161,9 +161,9 @@ const getStorage = async (
         }
         witness.setProofListList(accStorage.proof);
         reply.setWitness(witness);
+        callback(null, reply);
         const end = process.hrtime.bigint();
         console.log(`getStorage: ${end - start} ns`);
-        callback(null, reply);
       })
       .catch((e) => {
         console.log('ERROR: getStorage\n', e);
