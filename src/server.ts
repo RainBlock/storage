@@ -64,9 +64,18 @@ const getCodeInfo = async (
       });
 };
 
+let isFirstAccount = true;
+let accRetNum = 0;
+let accStart: [number, number];
+
 const getAccount = async (
     call: ServerUnaryCall<AccountRequest>,
     callback: sendUnaryData<AccountReply>) => {
+  if (isFirstAccount) {
+    accStart = process.hrtime();
+    isFirstAccount = false;
+  }
+
   // unpack request
   const address = Buffer.from(call.request.getAddress_asU8());
 
@@ -85,6 +94,14 @@ const getAccount = async (
         }
         witness.setProofListList(account.proof.slice(pruneDepth));
         reply.setWitness(witness);
+        accRetNum += 1;
+        if (accRetNum === 1000000) {
+          const accEnd = process.hrtime(accStart);
+          console.log('GetAccountOps: 1000000');
+          console.log('Time(s): ', accEnd[0] + accEnd[1] / 1000000000);
+          accRetNum = 0;
+          isFirstAccount = true;
+        }
         callback(null, reply);
       })
       .catch((e) => {
