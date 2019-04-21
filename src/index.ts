@@ -140,7 +140,8 @@ export class StorageNode implements Storage {
       batchOps.push({key: put.key, val: ethereumAccountToRlp(val)});
     }
     trie.batch(batchOps, []);
-    console.log('Storage initialized to ', trie.root);
+    console.log(`Storage shard ${this._shard} initialized to ${
+        trie.root.toString('hex')}`);
     for (const put of putOps) {
       this._updateGethStorage(
           put.val.storage, put.val.root, put.val.codeHash, put.val.code);
@@ -203,7 +204,6 @@ export class StorageNode implements Storage {
 
   async update(
       rlpBlock: RlpList, updateOps: UpdateOps[], merkleNodes?: Buffer) {
-    const start = process.hrtime.bigint();
     this.gc();
     const block: EthereumBlock = await decodeBlock(rlpBlock);
     const parentHash = block.header.parentHash;
@@ -319,10 +319,6 @@ export class StorageNode implements Storage {
     this._highestBlockNumber = (this._highestBlockNumber > blockNum) ?
         this._highestBlockNumber :
         blockNum;
-    const end = process.hrtime.bigint();
-    console.log(
-        this._shard.toString() + ': ' +
-        (Number(end - start) / 1000000).toFixed(2) + ' ms');
   }
 
   private async _checkRoots(shRoot: bigint, rlp: Buffer) {

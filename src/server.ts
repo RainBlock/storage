@@ -40,6 +40,14 @@ const getCodeInfo = async (
           }
           callback(null, reply);
         } else {
+          // remove the first pruneDepth levels from witness
+          const proofLength = ret.account.proof.length;
+          if (proofLength < pruneDepth) {
+            ret.account.proof = ret.account.proof.slice(pruneDepth);
+          } else {
+            ret.account.proof = ret.account.proof.slice(-1);
+          }
+          // pack reply
           const account = serializer.rlpSerializeWitness(ret.account);
           const reply = new CodeReply();
           const accountReply = new AccountReply();
@@ -47,7 +55,7 @@ const getCodeInfo = async (
           if (account.value) {
             witness.setValue(new Uint8Array(account.value));
           }
-          witness.setProofListList(account.proof.slice(pruneDepth));
+          witness.setProofListList(account.proof);
           accountReply.setExists(exists);
           accountReply.setWitness(witness);
           reply.setAccountInfo(accountReply);
@@ -75,6 +83,13 @@ const getAccount = async (
   prom.then((ret) => {
         const exists = (ret.value) ? true : false;
 
+        // remove the first pruneDepth levels from witness
+        const proofLength = ret.proof.length;
+        if (proofLength < pruneDepth) {
+          ret.proof = ret.proof.slice(pruneDepth);
+        } else {
+          ret.proof = ret.proof.slice(-1);
+        }
         // pack reply
         const account = serializer.rlpSerializeWitness(ret);
         const reply = new AccountReply();
@@ -83,7 +98,7 @@ const getAccount = async (
         if (account.value) {
           witness.setValue(new Uint8Array(account.value));
         }
-        witness.setProofListList(account.proof.slice(pruneDepth));
+        witness.setProofListList(account.proof);
         reply.setWitness(witness);
         callback(null, reply);
       })
