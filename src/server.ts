@@ -66,7 +66,7 @@ const getCodeInfo = async (
           const end = process.hrtime.bigint();
           callback(null, reply);
           console.log(`witPercentage: ${
-              account.proof.length * 100 / proofLength}, original: ${
+              (proofLength - account.proof.length) * 100 / proofLength}, original: ${
               proofLength}, reduced: ${account.proof.length}`);
           console.log(`getCode: ${end - start} ns`);
         }
@@ -134,7 +134,7 @@ const getAccount = async (
         const end = process.hrtime.bigint();
         callback(null, reply);
         console.log(`witPercentage: ${
-            account.proof.length * 100 / proofLength}, original: ${
+            (proofLength - account.proof.length) * 100 / proofLength}, original: ${
             proofLength}, reduced: ${account.proof.length}`);
         console.log(`getAccount: ${end - start} ns`);
       })
