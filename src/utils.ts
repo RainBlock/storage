@@ -129,16 +129,19 @@ async function _getStateFromGethJSON(
       streamObject(),
     ]);
     for await (const data of asyncChunks(pipeline)) {
+      const account = gethAccountToEthAccount(data.value);
       trie.put(
           toBufferBE(BigInt(`0x${data.key}`), 20),
-          ethereumAccountToRlp(data.value));
+          ethereumAccountToRlp(account));
       const storageEntries = data.value.storage.entries;
       for (const [key, value] of storageEntries) {
         const k = BigInt(`0x${key}`);
         const v = Buffer.from(value, 'hex');
         storageTrie.put(k, v);
       }
-      codes.add(BigInt(`0x${data.value.code}`));
+      if (data.value.code.length) {
+        codes.add(BigInt(`0x${data.value.code}`));
+      }
     }
   }
   return {codes, done: true};
