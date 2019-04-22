@@ -137,7 +137,8 @@ export class StorageNode implements Storage {
       keyConverter: k => hashAsBuffer(HashType.KECCAK256, toBufferBE(k, 20)),
       putCanDelete: false
     });
-    const codes: Set<bigint> = getStateFromGethJSON(trie, storageTrie,
+    const codes: Set<bigint> = getStateFromGethJSON(
+        trie, storageTrie,
         ((!genesisJSON) ? __dirname + '/test_data/genesis.json' :
                           __dirname + '/' + genesisJSON),
         isCompressed);

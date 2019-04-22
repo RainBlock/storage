@@ -9,7 +9,7 @@ import {parser} from 'stream-json';
 import {pick} from 'stream-json/filters/Pick';
 import {streamObject} from 'stream-json/streamers/StreamObject';
 import * as zlib from 'zlib';
-import { MerklePatriciaTree } from '@rainblock/merkle-patricia-tree/build/src';
+import {MerklePatriciaTree} from '@rainblock/merkle-patricia-tree/build/src';
 
 const asyncChunks = require('async-chunks');
 
@@ -87,7 +87,8 @@ export function gethAccountToEthAccount(account: GethStateDumpAccount):
 export function getStateFromGethJSON(
     trie: MerklePatriciaTree, storageTrie: MerklePatriciaTree<bigint, Buffer>,
     filename: string, compressed = false): Set<bigint> {
-  const putOpsPromise = _getStateFromGethJSON(trie, storageTrie, filename, compressed);
+  const putOpsPromise =
+      _getStateFromGethJSON(trie, storageTrie, filename, compressed);
   let codesArray: Set<bigint> = new Set<bigint>();
   let isDone = false;
   putOpsPromise.then((reply: {codes: Set<bigint>, done: boolean}) => {
@@ -128,7 +129,9 @@ async function _getStateFromGethJSON(
       streamObject(),
     ]);
     for await (const data of asyncChunks(pipeline)) {
-      trie.put(toBufferBE(BigInt(`0x${data.key}`), 20), ethereumAccountToRlp(data.value));
+      trie.put(
+          toBufferBE(BigInt(`0x${data.key}`), 20),
+          ethereumAccountToRlp(data.value));
       const storageEntries = data.value.storage.entries;
       for (const [key, value] of storageEntries) {
         const k = BigInt(`0x${key}`);
