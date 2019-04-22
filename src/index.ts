@@ -153,6 +153,8 @@ export class StorageNode implements Storage {
     console.log(`Storage shard ${this._shard} initialized to ${
         trie.root.toString('hex')}`);
 
+    // console.log("Number of nodes in the trie: ", trie.nodeCount());
+    // console.log("Trie size: ", trie.size())
     const data = fs.readFileSync(
         ((!genesisBIN) ? __dirname + '/test_data/genesis.bin' :
                          __dirname + '/' + genesisBIN));

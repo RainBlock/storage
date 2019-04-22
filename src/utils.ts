@@ -134,15 +134,39 @@ async function _getStateFromGethJSON(
           toBufferBE(BigInt(`0x${data.key}`), 20),
           ethereumAccountToRlp(account));
       const storageEntries = data.value.storage.entries;
-      for (const [key, value] of storageEntries) {
-        const k = BigInt(`0x${key}`);
-        const v = Buffer.from(value, 'hex');
-        storageTrie.put(k, v);
+      if (storageEntries) {
+        for (const [key, value] of storageEntries) {
+          const k = BigInt(`0x${key}`);
+          const v = Buffer.from(value, 'hex');
+          storageTrie.put(k, v);
+        }
       }
       if (data.value.code.length) {
         codes.add(BigInt(`0x${data.value.code}`));
       }
     }
+    /*
+    const p = chain([
+      fs.createReadStream(filename),
+      zlib.createGunzip(),
+      parser(),
+      pick({filter: 'accounts'}),
+      streamObject(),
+    ]);
+
+    let avgDepth = 0;
+    let maxDepth = 0;
+    let numKeys = 0;
+    for await (const data of asyncChunks(p)) {
+      const value = trie.get(toBufferBE(BigInt(`0x${data.key}`), 20));
+      avgDepth += value.proof.length;
+      maxDepth = (value.proof.length > maxDepth)? value.proof.length: maxDepth;
+      numKeys++;
+    }
+    console.log("maxDepth of trie   : ", maxDepth);
+    console.log("avgDepth of trie   : ", avgDepth/numKeys);
+    console.log("number of accounts : ", numKeys);
+     */
   }
   return {codes, done: true};
 }
