@@ -125,8 +125,8 @@ const getAccount = async (
         }
         witness.setProofListList(account.proof);
         reply.setWitness(witness);
-        callback(null, reply);
         const end = process.hrtime.bigint();
+        callback(null, reply);
         console.log(`getAccount: ${end - start} ns`);
       })
       .catch((e) => {
@@ -161,8 +161,8 @@ const getStorage = async (
         }
         witness.setProofListList(accStorage.proof);
         reply.setWitness(witness);
-        callback(null, reply);
         const end = process.hrtime.bigint();
+        callback(null, reply);
         console.log(`getStorage: ${end - start} ns`);
       })
       .catch((e) => {
@@ -189,8 +189,8 @@ const getBlockHash = async (
           retList.push(new Uint8Array(toBufferBE(hash, 20)));
         }
         reply.setHashesList(retList);
-        callback(null, reply);
         const end = process.hrtime.bigint();
+        callback(null, reply);
         console.log(`getBlockHash: ${end - start} ns`);
       })
       .catch((e) => {
@@ -243,8 +243,8 @@ const update = async (
     callback(e, new Empty());
     return;
   });
-  callback(null, new Empty());
   const end = process.hrtime.bigint();
+  callback(null, new Empty());
   console.log(`Update: ${end - start} ns`);
 };
 
