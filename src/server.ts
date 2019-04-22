@@ -22,6 +22,7 @@ let shards: StorageShards;
 
 const getCodeInfo = async (
     call: ServerUnaryCall<CodeRequest>, callback: sendUnaryData<CodeReply>) => {
+  const start = process.hrtime.bigint();
   // unpack request
   const address = await u8ToBuffer(call.request.getAddress_asU8());
   const codeOnly = call.request.getCodeOnly();
@@ -42,7 +43,7 @@ const getCodeInfo = async (
         } else {
           // remove the first pruneDepth levels from witness
           const proofLength = ret.account.proof.length;
-          if (proofLength < pruneDepth) {
+          if (proofLength > pruneDepth) {
             ret.account.proof = ret.account.proof.slice(pruneDepth);
           } else {
             ret.account.proof = ret.account.proof.slice(-1);
@@ -62,7 +63,12 @@ const getCodeInfo = async (
           if (code) {
             reply.setCode(new Uint8Array(code));
           }
+          const end = process.hrtime.bigint();
           callback(null, reply);
+          console.log(`witPercentage: ${
+              account.proof.length * 100 / proofLength}, original: ${
+              proofLength}, reduced: ${account.proof.length}`);
+          console.log(`getCode: ${end - start} ns`);
         }
       })
       .catch((e) => {
@@ -110,7 +116,7 @@ const getAccount = async (
 
         // remove the first pruneDepth levels from witness
         const proofLength = ret.proof.length;
-        if (proofLength < pruneDepth) {
+        if (proofLength > pruneDepth) {
           ret.proof = ret.proof.slice(pruneDepth);
         } else {
           ret.proof = ret.proof.slice(-1);
@@ -127,6 +133,9 @@ const getAccount = async (
         reply.setWitness(witness);
         const end = process.hrtime.bigint();
         callback(null, reply);
+        console.log(`witPercentage: ${
+            account.proof.length * 100 / proofLength}, original: ${
+            proofLength}, reduced: ${account.proof.length}`);
         console.log(`getAccount: ${end - start} ns`);
       })
       .catch((e) => {

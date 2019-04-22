@@ -134,10 +134,12 @@ async function _getStateFromGethJSON(
           toBufferBE(BigInt(`0x${data.key}`), 20),
           ethereumAccountToRlp(account));
       const storageEntries = data.value.storage.entries;
-      for (const [key, value] of storageEntries) {
-        const k = BigInt(`0x${key}`);
-        const v = Buffer.from(value, 'hex');
-        storageTrie.put(k, v);
+      if (storageEntries) {
+        for (const [key, value] of storageEntries) {
+          const k = BigInt(`0x${key}`);
+          const v = Buffer.from(value, 'hex');
+          storageTrie.put(k, v);
+        }
       }
       if (data.value.code.length) {
         codes.add(BigInt(`0x${data.value.code}`));
