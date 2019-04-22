@@ -5,7 +5,7 @@ import {hashAsBigInt, hashAsBuffer, HashType} from 'bigint-hash';
 import * as fs from 'fs-extra';
 import {RlpDecode, RlpEncode, RlpList} from 'rlp-stream';
 
-import {computeBlockHash, EthereumAccount, ethereumAccountToRlp, gethAccountToEthAccount, GethStateDumpAccount, getStateFromGethJSON, rlpToEthereumAccount, UpdateOps} from './utils';
+import {computeBlockHash, EthereumAccount, ethereumAccountToRlp, GethStateDumpAccount, getStateFromGethJSON, rlpToEthereumAccount, UpdateOps} from './utils';
 
 const multiMap = require('multimap');
 
@@ -129,27 +129,29 @@ export class StorageNode implements Storage {
     const isCompressed =
         (genesisJSON && genesisJSON.slice(-3) === '.gz') ? true : false;
     console.log('Compressed state: ', isCompressed);
-    const putOps = getStateFromGethJSON(
-        ((!genesisJSON) ? __dirname + '/test_data/genesis.json' :
-                          __dirname + '/' + genesisJSON),
-        isCompressed);
-
     const trie = new MerklePatriciaTree({
       keyConverter: k => hashAsBuffer(HashType.KECCAK256, k),
       putCanDelete: false
     });
-    const batchOps = [];
-    for (const put of putOps) {
-      const val = gethAccountToEthAccount(put.val);
-      batchOps.push({key: put.key, val: ethereumAccountToRlp(val)});
+    const storageTrie = new MerklePatriciaTree<bigint, Buffer>({
+      keyConverter: k => hashAsBuffer(HashType.KECCAK256, toBufferBE(k, 20)),
+      putCanDelete: false
+    });
+    const codes: Set<bigint> = getStateFromGethJSON(trie, storageTrie,
+        ((!genesisJSON) ? __dirname + '/test_data/genesis.json' :
+                          __dirname + '/' + genesisJSON),
+        isCompressed);
+
+    this._InternalStorage.set(storageTrie.rootHash, storageTrie);
+    for (const code of codes) {
+      const codeBuffer = Buffer.from(code.toString(16), 'hex');
+      const codeHashBuffer = hashAsBigInt(HashType.KECCAK256, codeBuffer);
+      this._CodeStorage.set(codeHashBuffer, codeBuffer);
     }
-    trie.batch(batchOps, []);
+    this._CodeStorage.set(this.EMPTY_CODE_HASH, Buffer.from(''));
+
     console.log(`Storage shard ${this._shard} initialized to ${
         trie.root.toString('hex')}`);
-    for (const put of putOps) {
-      this._updateGethStorage(
-          put.val.storage, put.val.root, put.val.codeHash, put.val.code);
-    }
 
     const data = fs.readFileSync(
         ((!genesisBIN) ? __dirname + '/test_data/genesis.bin' :

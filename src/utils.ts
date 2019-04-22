@@ -9,6 +9,7 @@ import {parser} from 'stream-json';
 import {pick} from 'stream-json/filters/Pick';
 import {streamObject} from 'stream-json/streamers/StreamObject';
 import * as zlib from 'zlib';
+import { MerklePatriciaTree } from '@rainblock/merkle-patricia-tree/build/src';
 
 const asyncChunks = require('async-chunks');
 
@@ -84,24 +85,39 @@ export function gethAccountToEthAccount(account: GethStateDumpAccount):
 }
 
 export function getStateFromGethJSON(
-    filename: string, compressed = false): GethPutOps[] {
-  const putOpsPromise = _getStateFromGethJSON(filename, compressed);
-  let putOps: GethPutOps[] = [];
-  putOpsPromise.then((ops) => {
-    putOps = ops;
+    trie: MerklePatriciaTree, storageTrie: MerklePatriciaTree<bigint, Buffer>,
+    filename: string, compressed = false): Set<bigint> {
+  const putOpsPromise = _getStateFromGethJSON(trie, storageTrie, filename, compressed);
+  let codesArray: Set<bigint> = new Set<bigint>();
+  let isDone = false;
+  putOpsPromise.then((reply: {codes: Set<bigint>, done: boolean}) => {
+    codesArray = reply.codes;
+    isDone = reply.done;
   });
-  wait.for.predicate(() => putOps.length);
-  return putOps;
+  wait.for.predicate(() => isDone);
+  return codesArray;
 }
 
-async function _getStateFromGethJSON(filename: string, compressed: boolean) {
-  const ops: GethPutOps[] = [];
+async function _getStateFromGethJSON(
+    trie: MerklePatriciaTree, storageTrie: MerklePatriciaTree<bigint, Buffer>,
+    filename: string, compressed: boolean) {
+  const codes = new Set<bigint>();
   if (!compressed) {
     const gethJSON =
         JSON.parse(await fs.readFile(filename, {encoding: 'utf8'})) as
         GethStateDump;
     for (const [id, account] of Object.entries(gethJSON.accounts)) {
-      ops.push({key: toBufferBE(BigInt(`0x${id}`), 20), val: account});
+      const val = gethAccountToEthAccount(account);
+      trie.put(toBufferBE(BigInt(`0x${id}`), 20), ethereumAccountToRlp(val));
+      const storageEntries = Object.entries(account.storage);
+      for (const [key, value] of storageEntries) {
+        const k = BigInt(`0x${key}`);
+        const v = Buffer.from(value, 'hex');
+        storageTrie.put(k, v);
+      }
+      if (account.code.length) {
+        codes.add(BigInt(`0x${account.code}`));
+      }
     }
   } else {
     const pipeline = chain([
@@ -112,10 +128,17 @@ async function _getStateFromGethJSON(filename: string, compressed: boolean) {
       streamObject(),
     ]);
     for await (const data of asyncChunks(pipeline)) {
-      ops.push({key: toBufferBE(BigInt(`0x${data.key}`), 20), val: data.value});
+      trie.put(toBufferBE(BigInt(`0x${data.key}`), 20), ethereumAccountToRlp(data.value));
+      const storageEntries = data.value.storage.entries;
+      for (const [key, value] of storageEntries) {
+        const k = BigInt(`0x${key}`);
+        const v = Buffer.from(value, 'hex');
+        storageTrie.put(k, v);
+      }
+      codes.add(BigInt(`0x${data.value.code}`));
     }
   }
-  return ops;
+  return {codes, done: true};
 }
 
 export interface UpdateOps {
