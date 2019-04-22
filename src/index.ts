@@ -128,7 +128,6 @@ export class StorageNode implements Storage {
     }
     const isCompressed =
         (genesisJSON && genesisJSON.slice(-3) === '.gz') ? true : false;
-    console.log('Compressed state: ', isCompressed);
     const trie = new MerklePatriciaTree({
       keyConverter: k => hashAsBuffer(HashType.KECCAK256, k),
       putCanDelete: false
