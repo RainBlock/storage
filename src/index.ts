@@ -126,9 +126,13 @@ export class StorageNode implements Storage {
     if (!this.isEmpty()) {
       throw new Error('Invalid: putGenesis when blockchain not empty');
     }
+    const isCompressed =
+        (genesisJSON && genesisJSON.slice(-3) === '.gz') ? true : false;
+    console.log('Compressed state: ', isCompressed);
     const putOps = getStateFromGethJSON(
         ((!genesisJSON) ? __dirname + '/test_data/genesis.json' :
-                          __dirname + '/' + genesisJSON));
+                          __dirname + '/' + genesisJSON),
+        isCompressed);
 
     const trie = new MerklePatriciaTree({
       keyConverter: k => hashAsBuffer(HashType.KECCAK256, k),

@@ -4,6 +4,15 @@ import * as fs from 'fs-extra';
 import {RlpEncode, RlpList} from 'rlp-stream/build/src/rlp-stream';
 const wait = require('wait-for-stuff');
 
+import {chain} from 'stream-chain';
+import {parser} from 'stream-json';
+import {pick} from 'stream-json/filters/Pick';
+import {streamObject} from 'stream-json/streamers/StreamObject';
+import * as zlib from 'zlib';
+
+const asyncChunks = require('async-chunks');
+
+
 export function computeBlockHash(block: RlpList): bigint {
   const blockBuffer = RlpEncode(block[0]);
   const hash = hashAsBigInt(HashType.KECCAK256, blockBuffer);
@@ -74,8 +83,9 @@ export function gethAccountToEthAccount(account: GethStateDumpAccount):
   return ethAccount;
 }
 
-export function getStateFromGethJSON(filename: string): GethPutOps[] {
-  const putOpsPromise = _getStateFromGethJSON(filename);
+export function getStateFromGethJSON(
+    filename: string, compressed = false): GethPutOps[] {
+  const putOpsPromise = _getStateFromGethJSON(filename, compressed);
   let putOps: GethPutOps[] = [];
   putOpsPromise.then((ops) => {
     putOps = ops;
@@ -84,14 +94,26 @@ export function getStateFromGethJSON(filename: string): GethPutOps[] {
   return putOps;
 }
 
-async function _getStateFromGethJSON(filename: string) {
+async function _getStateFromGethJSON(filename: string, compressed: boolean) {
   const ops: GethPutOps[] = [];
-  const gethJSON =
-      JSON.parse(await fs.readFile(filename, {encoding: 'utf8'})) as
-      GethStateDump;
-  for (const [id, account] of Object.entries(gethJSON.accounts)) {
-    const throwAwayKey = toBufferBE(BigInt(`0x${id}`), 20);
-    ops.push({key: toBufferBE(BigInt(`0x${id}`), 20), val: account});
+  if (!compressed) {
+    const gethJSON =
+        JSON.parse(await fs.readFile(filename, {encoding: 'utf8'})) as
+        GethStateDump;
+    for (const [id, account] of Object.entries(gethJSON.accounts)) {
+      ops.push({key: toBufferBE(BigInt(`0x${id}`), 20), val: account});
+    }
+  } else {
+    const pipeline = chain([
+      fs.createReadStream(filename),
+      zlib.createGunzip(),
+      parser(),
+      pick({filter: 'accounts'}),
+      streamObject(),
+    ]);
+    for await (const data of asyncChunks(pipeline)) {
+      ops.push({key: toBufferBE(BigInt(`0x${data.key}`), 20), val: data.value});
+    }
   }
   return ops;
 }
